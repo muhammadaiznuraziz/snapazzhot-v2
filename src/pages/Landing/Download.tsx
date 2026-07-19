@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import JSZip from "jszip";
+import QRCode from "react-qr-code";
 
 interface PhotoRecord {
   id: string;
@@ -178,7 +179,7 @@ export default function DownloadPortal() {
           .select("*")
           .eq("id", targetId)
           .single();
-        
+
         if (photoErr) throw photoErr;
 
         if (dbPhoto) {
