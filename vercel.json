@@ -9,7 +9,7 @@
     }
   ],
   "routes": [
-    { "src": "/download/.*", "dest": "/index.html" },
+    { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
