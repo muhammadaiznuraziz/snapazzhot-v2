@@ -1,0 +1,6 @@
+{
+  "name": "snapazzhot",
+  "description": "Professional Web Photo Booth Kiosk & Event Management System",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
