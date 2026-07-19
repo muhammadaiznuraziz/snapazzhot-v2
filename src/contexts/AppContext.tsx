@@ -1,5 +1,85 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { AppEvent, PhotoRecord, FrameTemplate } from "../types";
+import { supabase } from "../lib/supabaseClient";
+
+// Helper mappers to map snake_case db columns to camelCase TS interfaces
+const mapTemplateFromDB = (db: any): FrameTemplate => ({
+  id: db.id,
+  name: db.name,
+  thumbnail: db.thumbnail,
+  category: db.category,
+  preview: db.preview || undefined,
+  canvasWidth: db.canvas_width ?? 600,
+  canvasHeight: db.canvas_height ?? 1800,
+  photoCount: db.photo_count ?? 4,
+  elements: db.elements || [],
+  framePng: db.frame_png || undefined,
+  backgroundImage: db.background_image || undefined,
+  printSize: db.print_size ?? 'Strips',
+  status: db.status === 'draft' ? 'draft' : 'active',
+  createdBy: db.created_by || undefined,
+  createdAt: db.created_at,
+  updatedAt: db.updated_at,
+});
+
+const mapTemplateToDB = (t: Partial<FrameTemplate>) => {
+  const db: any = {};
+  if (t.id !== undefined) db.id = t.id;
+  if (t.name !== undefined) db.name = t.name;
+  if (t.thumbnail !== undefined) db.thumbnail = t.thumbnail;
+  if (t.category !== undefined) db.category = t.category;
+  if (t.preview !== undefined) db.preview = t.preview;
+  if (t.canvasWidth !== undefined) db.canvas_width = t.canvasWidth;
+  if (t.canvasHeight !== undefined) db.canvas_height = t.canvasHeight;
+  if (t.photoCount !== undefined) db.photo_count = t.photoCount;
+  if (t.elements !== undefined) db.elements = t.elements;
+  if (t.framePng !== undefined) db.frame_png = t.framePng;
+  if (t.backgroundImage !== undefined) db.background_image = t.backgroundImage;
+  if (t.printSize !== undefined) db.print_size = t.printSize;
+  if (t.status !== undefined) db.status = t.status;
+  if (t.createdBy !== undefined) db.created_by = t.createdBy;
+  db.updated_at = new Date().toISOString();
+  return db;
+};
+
+const mapEventFromDB = (db: any): AppEvent => ({
+  id: db.id,
+  name: db.name,
+  logo: db.logo,
+  frameId: db.frame_id || '',
+  countdown: db.countdown ?? 5,
+  photoCount: db.photo_count ?? 4,
+  layoutType: db.layout_type || 'strip',
+  themeColor: db.theme_color || '#db2777',
+  qrExpiredMinutes: db.qr_expired_minutes ?? 60,
+  emailTemplate: db.email_template || '',
+  backgroundImage: db.background_image || undefined,
+  layoutPositions: db.layout_positions || [],
+  templateId: db.template_id || undefined,
+  enableVideo: db.enable_video ?? false,
+  videoQuality: db.video_quality || 'medium',
+  enableAudio: db.enable_audio ?? false,
+  enableGif: db.enable_gif ?? false,
+  gifResolution: db.gif_resolution ?? 360,
+  gifDelay: db.gif_delay ?? 500,
+  mirrorEnabled: db.mirror_enabled ?? true,
+});
+
+const mapPhotoFromDB = (db: any): PhotoRecord => ({
+  id: db.id,
+  url: db.url,
+  type: db.type || 'photo',
+  eventId: db.event_id || '',
+  timestamp: db.timestamp,
+  views: db.views ?? 0,
+  printsCount: db.prints_count ?? 0,
+  isPublic: db.is_public ?? false,
+  username: db.username || 'Guest',
+  templateName: db.template_name || undefined,
+  likeCount: db.like_count ?? 0,
+  mirror_enabled: db.mirror_enabled ?? false,
+  meta: db.meta || {},
+});
 
 interface AppContextType {
   events: AppEvent[];
@@ -34,10 +114,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const fetchTemplates = async () => {
     try {
-      const res = await fetch("/api/templates");
-      const d = await res.json();
-      if (d.success) {
-        setTemplates(d.data);
+      const { data, error } = await supabase
+        .from("templates")
+        .select("*")
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      if (data) {
+        setTemplates(data.map(mapTemplateFromDB));
       }
     } catch (err) {
       console.error("Failed to fetch templates", err);
@@ -46,15 +130,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const saveTemplate = async (template: Partial<FrameTemplate>) => {
     try {
-      const res = await fetch("/api/templates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(template)
-      });
-      const d = await res.json();
-      if (d.success) {
+      const dbData = mapTemplateToDB(template);
+      const { data, error } = await supabase
+        .from("templates")
+        .upsert(dbData)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (data) {
         await fetchTemplates();
-        return d.data as FrameTemplate;
+        return mapTemplateFromDB(data);
       }
     } catch (err) {
       console.error("Failed to save template", err);
@@ -64,14 +150,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteTemplate = async (id: string) => {
     try {
-      const res = await fetch(`/api/templates/${id}`, {
-        method: "DELETE"
-      });
-      const d = await res.json();
-      if (d.success) {
-        await fetchTemplates();
-        return true;
-      }
+      const { error } = await supabase
+        .from("templates")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+      await fetchTemplates();
+      return true;
     } catch (err) {
       console.error("Failed to delete template", err);
     }
@@ -79,51 +165,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const fetchInitialData = async () => {
-    const fetchJson = async (url: string) => {
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 15000);
-
-      try {
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) throw new Error(`${url} returned ${response.status}`);
-        return await response.json();
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
-    };
-
+    setLoading(true);
     try {
-      // Each resource is optional for startup. A failed gallery/template request
-      // must not prevent the booth from receiving its event configuration.
-      const [templatesResult, eventsResult, photosResult] = await Promise.allSettled([
-        fetchJson("/api/templates"),
-        fetchJson("/api/events"),
-        fetchJson("/api/gallery"),
+      const [templatesRes, eventsRes, photosRes] = await Promise.allSettled([
+        supabase.from("templates").select("*").order("created_at", { ascending: false }),
+        supabase.from("events").select("*"),
+        supabase.from("photos").select("*").order("timestamp", { ascending: false }),
       ]);
 
-      if (templatesResult.status === "fulfilled" && templatesResult.value.success) {
-        setTemplates(templatesResult.value.data);
-      } else if (templatesResult.status === "rejected") {
-        console.error("Failed to load templates", templatesResult.reason);
+      if (templatesRes.status === "fulfilled" && !templatesRes.value.error && templatesRes.value.data) {
+        setTemplates(templatesRes.value.data.map(mapTemplateFromDB));
+      } else {
+        const error = templatesRes.status === "fulfilled" ? templatesRes.value.error : templatesRes.reason;
+        console.error("Failed to load templates", error);
       }
 
-      if (eventsResult.status === "fulfilled" && eventsResult.value.success) {
-        const loadedEvents = eventsResult.value.data as AppEvent[];
+      if (eventsRes.status === "fulfilled" && !eventsRes.value.error && eventsRes.value.data) {
+        const loadedEvents = eventsRes.value.data.map(mapEventFromDB);
         setEvents(loadedEvents);
+        
         // Set first event as active if none is currently selected.
         if (loadedEvents.length > 0 && !activeEvent) {
           const storedEventId = localStorage.getItem("snapazzhot_active_event_id");
           const found = loadedEvents.find((event) => event.id === storedEventId);
           setActiveEvent(found || loadedEvents[0]);
         }
-      } else if (eventsResult.status === "rejected") {
-        console.error("Failed to load events", eventsResult.reason);
+      } else {
+        const error = eventsRes.status === "fulfilled" ? eventsRes.value.error : eventsRes.reason;
+        console.error("Failed to load events", error);
       }
 
-      if (photosResult.status === "fulfilled" && photosResult.value.success) {
-        setPhotos(photosResult.value.data);
-      } else if (photosResult.status === "rejected") {
-        console.error("Failed to load gallery", photosResult.reason);
+      if (photosRes.status === "fulfilled" && !photosRes.value.error && photosRes.value.data) {
+        setPhotos(photosRes.value.data.map(mapPhotoFromDB));
+      } else {
+        const error = photosRes.status === "fulfilled" ? photosRes.value.error : photosRes.reason;
+        console.error("Failed to load gallery", error);
       }
     } finally {
       setLoading(false);

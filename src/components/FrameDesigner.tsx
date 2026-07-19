@@ -2,6 +2,17 @@ import React, { useState, useEffect, useRef } from "react";
 import { Sparkles, Move, Maximize2, RotateCw, Trash2, Copy, Lock, Unlock, Eye, EyeOff, ZoomIn, ZoomOut, RotateCcw, Undo, Redo, HelpCircle, Save, X, Plus, Image as ImageIcon, Type, Calendar, Clock, Hash, QrCode, FileText } from "lucide-react";
 import { FrameTemplate, FrameElement } from "../types";
 import { useApp } from "../contexts/AppContext";
+import { supabase } from "../lib/supabaseClient";
+
+const base64ToBlob = (base64: string, mimeType: string) => {
+  const byteCharacters = atob(base64.split(",")[1]);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+};
 
 interface FrameDesignerProps {
   onClose: () => void;

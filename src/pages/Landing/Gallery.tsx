@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../../contexts/AppContext";
+import { supabase } from "../../lib/supabaseClient";
 import {
   RefreshCw,
   Download,
@@ -228,19 +229,29 @@ export default function Gallery() {
     if (likedPhotos.includes(photoId)) return;
 
     try {
-      const res = await fetch(`/api/gallery/${photoId}/like`, {
-        method: "POST",
-      });
-      const d = await res.json();
-      if (d.success) {
-        const updated = [...likedPhotos, photoId];
-        setLikedPhotos(updated);
-        localStorage.setItem(
-          "snapazzhot_liked_photos",
-          JSON.stringify(updated),
-        );
-        if (fetchInitialData) await fetchInitialData();
-      }
+      const { data: photoData, error: fetchErr } = await supabase
+        .from("photos")
+        .select("like_count")
+        .eq("id", photoId)
+        .single();
+      
+      if (fetchErr) throw fetchErr;
+
+      const currentLikes = photoData?.like_count || 0;
+      const { error: updateErr } = await supabase
+        .from("photos")
+        .update({ like_count: currentLikes + 1 })
+        .eq("id", photoId);
+
+      if (updateErr) throw updateErr;
+
+      const updated = [...likedPhotos, photoId];
+      setLikedPhotos(updated);
+      localStorage.setItem(
+        "snapazzhot_liked_photos",
+        JSON.stringify(updated),
+      );
+      if (fetchInitialData) await fetchInitialData();
     } catch (err) {
       console.warn("Failed to like photo", err);
     }

@@ -2,6 +2,24 @@ import React, { useState, useRef, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useApp } from "../contexts/AppContext";
 import { PhotoRecord, AppEvent } from "../types";
+import { supabase } from "../lib/supabaseClient";
+
+const anyToBlob = async (input: string) => {
+  if (input.startsWith("blob:")) {
+    const res = await fetch(input);
+    return await res.blob();
+  }
+  if (input.startsWith("data:")) {
+    const byteCharacters = atob(input.split(",")[1]);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: input.split(",")[0].split(":")[1].split(";")[0] });
+  }
+  throw new Error("Invalid base64 or blob URL");
+};
 
 export interface StickerInstance {
   id: string;
@@ -117,31 +135,45 @@ export default function BoothLayout() {
   const createDefaultEvent = async () => {
     setCreatingDefaultEvent(true);
     try {
-      const response = await fetch("/api/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Photo Booth Event",
-          logo: "SNAPAZZHOT",
-          frameId: "minimal-dark",
-          countdown: 5,
-          photoCount: 3,
-          layoutType: "strip",
-          themeColor: "#1a1a1a",
-          qrExpiredMinutes: 60,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Gagal membuat event.");
+      const eventId = `evt-${Date.now()}`;
+      const defaultEventData = {
+        id: eventId,
+        name: "Photo Booth Event",
+        logo: "SNAPAZZHOT",
+        frame_id: "minimal-dark",
+        countdown: 5,
+        photo_count: 3,
+        layout_type: "strip",
+        theme_color: "#1a1a1a",
+        qr_expired_minutes: 60,
+      };
+
+      const { data, error } = await supabase
+        .from("events")
+        .insert(defaultEventData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        const mappedEvent = {
+          id: data.id,
+          name: data.name,
+          logo: data.logo,
+          frameId: data.frame_id,
+          countdown: data.countdown,
+          photoCount: data.photo_count,
+          layoutType: data.layout_type,
+          themeColor: data.theme_color,
+          qrExpiredMinutes: data.qr_expired_minutes,
+        };
+        setActiveEvent(mappedEvent);
+        await fetchInitialData();
       }
-      setActiveEvent(data.data);
-      await fetchInitialData();
     } catch (error) {
       console.error("Failed to create default booth event", error);
-      alert(
-        "Konfigurasi default belum bisa dibuat. Pastikan server sedang berjalan.",
-      );
+      alert("Konfigurasi default belum bisa dibuat di database.");
     } finally {
       setCreatingDefaultEvent(false);
     }
@@ -1634,38 +1666,103 @@ export default function BoothLayout() {
         }
       }
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          file: finalImageBase64,
+      // Upload to Supabase Storage + Database
+      const layoutBlob = await anyToBlob(finalImageBase64);
+      const layoutName = `${activeEvent.id}/${Date.now()}-layout.png`;
+      const { error: err1 } = await supabase.storage.from("photobooth-media").upload(layoutName, layoutBlob, { contentType: "image/png" });
+      if (err1) throw err1;
+      const { data: url1 } = supabase.storage.from("photobooth-media").getPublicUrl(layoutName);
+
+      let videoUrl = "";
+      if (videoBase64) {
+        const videoBlob = await anyToBlob(videoBase64);
+        const videoName = `${activeEvent.id}/${Date.now()}-bts.mp4`;
+        const { error: err2 } = await supabase.storage.from("photobooth-media").upload(videoName, videoBlob, { contentType: "video/mp4" });
+        if (err2) throw err2;
+        const { data: url2 } = supabase.storage.from("photobooth-media").getPublicUrl(videoName);
+        videoUrl = url2.publicUrl;
+      }
+
+      let noFrameUrl = "";
+      if (noFrameImageBase64) {
+        const noFrameBlob = await anyToBlob(noFrameImageBase64);
+        const noFrameName = `${activeEvent.id}/${Date.now()}-noframe.png`;
+        const { error: err3 } = await supabase.storage.from("photobooth-media").upload(noFrameName, noFrameBlob, { contentType: "image/png" });
+        if (err3) throw err3;
+        const { data: url3 } = supabase.storage.from("photobooth-media").getPublicUrl(noFrameName);
+        noFrameUrl = url3.publicUrl;
+      }
+
+      let gifUrl = "";
+      if (sessionGifUrl) {
+        try {
+          const gifBlob = await anyToBlob(sessionGifUrl);
+          const gifName = `${activeEvent.id}/${Date.now()}-loop.gif`;
+          const { error: err4 } = await supabase.storage.from("photobooth-media").upload(gifName, gifBlob, { contentType: "image/gif" });
+          if (err4) throw err4;
+          const { data: url4 } = supabase.storage.from("photobooth-media").getPublicUrl(gifName);
+          gifUrl = url4.publicUrl;
+        } catch (e) {
+          console.error("Failed to upload GIF", e);
+        }
+      }
+
+      const photoId = `PHO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const { data: dbPhoto, error: dbError } = await supabase
+        .from("photos")
+        .insert({
+          id: photoId,
+          url: url1.publicUrl,
           type: "photo",
-          eventId: activeEvent.id,
+          event_id: activeEvent.id,
+          timestamp: new Date().toISOString(),
+          views: 0,
+          prints_count: 0,
+          is_public: false,
+          username: "Guest",
+          template_name: activeEvent.name || "Default Template",
+          like_count: 0,
           meta: {
             filterApplied: "hybrid",
             stickersCount: 0,
             kioskMode: false,
             browserInfo: navigator.userAgent,
-            gifUrl: sessionGifUrl,
-            videoFile: videoBase64,
-            noFrameFile: noFrameImageBase64,
-            rawPhotos:
-              allSnappedPhotos.length > 0 ? allSnappedPhotos : capturedFrames,
-          },
-        }),
-      });
+            gifUrl: gifUrl || undefined,
+            videoUrl: videoUrl || undefined,
+            noFrameUrl: noFrameUrl || undefined,
+            rawPhotos: allSnappedPhotos.length > 0 ? allSnappedPhotos : capturedFrames,
+          }
+        })
+        .select()
+        .single();
 
-      const data = await response.json();
-      if (data.success) {
-        setCompiledPhotoRecord(data.data);
+      if (dbError) throw dbError;
+
+      if (dbPhoto) {
+        const mappedPhoto: PhotoRecord = {
+          id: dbPhoto.id,
+          url: dbPhoto.url,
+          type: dbPhoto.type,
+          eventId: dbPhoto.event_id,
+          timestamp: dbPhoto.timestamp,
+          views: dbPhoto.views,
+          printsCount: dbPhoto.prints_count,
+          isPublic: dbPhoto.is_public,
+          username: dbPhoto.username,
+          templateName: dbPhoto.template_name,
+          likeCount: dbPhoto.like_count,
+          mirror_enabled: dbPhoto.mirror_enabled,
+          meta: dbPhoto.meta
+        };
+
+        setCompiledPhotoRecord(mappedPhoto);
         await fetchInitialData();
         return true;
-      } else {
-        alert("Gagal mengupload layout foto.");
-        return false;
       }
+      return false;
     } catch (err) {
-      alert("Kesalahan koneksi saat mengirim data.");
+      console.error(err);
+      alert("Kesalahan koneksi saat menyimpan data ke Supabase.");
       return false;
     } finally {
       setUploading(false);
@@ -2018,37 +2115,28 @@ export default function BoothLayout() {
     setEmailSent(false);
 
     try {
-      const response = await fetch("/api/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          photoId: compiledPhotoRecord.id,
-          downloadUrl: new URL(
-            compiledPhotoRecord.url,
-            window.location.origin,
-          ).toString(),
-          gifUrl: compiledPhotoRecord.meta?.gifUrl
-            ? new URL(
-                compiledPhotoRecord.meta.gifUrl,
-                window.location.origin,
-              ).toString()
-            : undefined,
-          videoUrl: compiledPhotoRecord.meta?.videoUrl
-            ? new URL(
-                compiledPhotoRecord.meta.videoUrl,
-                window.location.origin,
-              ).toString()
-            : undefined,
-        }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setEmailSent(true);
-        setEmail("");
-      }
-    } catch (_) {
-      alert("Gagal menghubungi SMTP.");
+      const downloadUrl = new URL(
+        compiledPhotoRecord.url,
+        window.location.origin,
+      ).toString();
+
+      const { error } = await supabase
+        .from("email_logs")
+        .insert({
+          id: `eml-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          email: email,
+          photo_id: compiledPhotoRecord.id,
+          download_url: downloadUrl,
+          status: "pending",
+        });
+
+      if (error) throw error;
+
+      setEmailSent(true);
+      setEmail("");
+    } catch (err) {
+      console.error(err);
+      alert("Gagal mengirim email: Database error.");
     } finally {
       setEmailSending(false);
     }
@@ -2060,24 +2148,24 @@ export default function BoothLayout() {
     setPrintSuccess(false);
 
     try {
-      const response = await fetch("/api/print", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          photoId: compiledPhotoRecord.id,
+      const { error } = await supabase
+        .from("print_job_logs")
+        .insert({
+          id: `prt-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          photo_id: compiledPhotoRecord.id,
           size: activeEvent.layoutType === "strip" ? "2x6" : "4x6",
           copies: printCopies,
-        }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setPrintSuccess(true);
-        setTimeout(() => setPrintSuccess(false), 3000);
-      } else {
-        alert(data.message || "Printer gagal memproses.");
-      }
-    } catch (_) {
-      alert("Print service offline.");
+          status: "pending",
+          printer_name: "Default Kiosk Printer",
+        });
+
+      if (error) throw error;
+
+      setPrintSuccess(true);
+      setTimeout(() => setPrintSuccess(false), 3000);
+    } catch (err) {
+      console.error(err);
+      alert("Layanan print offline atau database error.");
     } finally {
       setPrinting(false);
     }

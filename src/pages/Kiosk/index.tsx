@@ -4,6 +4,17 @@ import { useApp } from "../../contexts/AppContext";
 import { Camera, RefreshCw, Sliders, ChevronLeft, ChevronRight, Check, Printer, Mail, Share2, Download, Trash, Heart, Sparkles, QrCode } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { AppEvent, PhotoRecord } from "../../types";
+import { supabase } from "../../lib/supabaseClient";
+
+const base64ToBlob = (base64: string, mimeType: string) => {
+  const byteCharacters = atob(base64.split(",")[1]);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+};
 
 const AVAILABLE_FILTERS = [
   { id: "normal", name: "Normal", class: "" },
@@ -487,15 +498,40 @@ export default function PhotoBoothKiosk() {
     // Render local canvas to base64 image
     const finalImageBase64 = canvas.toDataURL("image/png");
 
-    // Upload finalized layout photo to Server API
+    // Upload finalized layout photo to Supabase Storage + Database
     try {
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          file: finalImageBase64,
+      const fileBlob = base64ToBlob(finalImageBase64, "image/png");
+      const fileName = `${activeEvent.id}/${Date.now()}-${Math.floor(Math.random() * 1000)}.png`;
+      
+      const { data: storageData, error: storageError } = await supabase.storage
+        .from("photobooth-media")
+        .upload(fileName, fileBlob, {
+          contentType: "image/png",
+        });
+
+      if (storageError) throw storageError;
+
+      const { data: urlData } = supabase.storage
+        .from("photobooth-media")
+        .getPublicUrl(fileName);
+
+      const publicUrl = urlData.publicUrl;
+      const photoId = `PHO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+      const { data: dbPhoto, error: dbError } = await supabase
+        .from("photos")
+        .insert({
+          id: photoId,
+          url: publicUrl,
           type: "photo",
-          eventId: activeEvent.id,
+          event_id: activeEvent.id,
+          timestamp: new Date().toISOString(),
+          views: 0,
+          prints_count: 0,
+          is_public: false,
+          username: "Guest",
+          template_name: activeEvent.name || "Default Template",
+          like_count: 0,
           meta: {
             filterApplied: "hybrid",
             stickersCount: 0,
@@ -504,18 +540,36 @@ export default function PhotoBoothKiosk() {
             rawPhotos: capturedFrames
           }
         })
-      });
+        .select()
+        .single();
 
-      const data = await response.json();
-      if (data.success) {
-        setCompiledPhotoRecord(data.data);
+      if (dbError) throw dbError;
+
+      if (dbPhoto) {
+        // Map db columns to PhotoRecord shape (eventId, printsCount, templateName, etc.)
+        const mappedPhoto: PhotoRecord = {
+          id: dbPhoto.id,
+          url: dbPhoto.url,
+          type: dbPhoto.type,
+          eventId: dbPhoto.event_id,
+          timestamp: dbPhoto.timestamp,
+          views: dbPhoto.views,
+          printsCount: dbPhoto.prints_count,
+          isPublic: dbPhoto.is_public,
+          username: dbPhoto.username,
+          templateName: dbPhoto.template_name,
+          likeCount: dbPhoto.like_count,
+          mirror_enabled: dbPhoto.mirror_enabled,
+          meta: dbPhoto.meta
+        };
+
+        setCompiledPhotoRecord(mappedPhoto);
         onRefreshGallery();
         setStep('compiled');
-      } else {
-        alert("Gagal mengupload layout foto.");
       }
     } catch (err) {
-      alert("Kesalahan koneksi saat mengirim data.");
+      console.error(err);
+      alert("Kesalahan koneksi saat mengirim data atau upload storage.");
     } finally {
       setUploading(false);
     }
@@ -665,23 +719,25 @@ export default function PhotoBoothKiosk() {
     setEmailSent(false);
 
     try {
-      const response = await fetch("/api/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          photoId: compiledPhotoRecord.id,
-          downloadUrl: new URL(compiledPhotoRecord.url, window.location.origin).toString()
-        })
-      });
+      const downloadUrl = new URL(compiledPhotoRecord.url, window.location.origin).toString();
 
-      const data = await response.json();
-      if (data.success) {
-        setEmailSent(true);
-        setEmail("");
-      }
-    } catch (_) {
-      alert("Gagal menghubungi layanan SMTP.");
+      const { error } = await supabase
+        .from("email_logs")
+        .insert({
+          id: `eml-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          email: email,
+          photo_id: compiledPhotoRecord.id,
+          download_url: downloadUrl,
+          status: "pending",
+        });
+
+      if (error) throw error;
+
+      setEmailSent(true);
+      setEmail("");
+    } catch (err) {
+      console.error(err);
+      alert("Gagal menghubungi SMTP: Database error.");
     } finally {
       setEmailSending(false);
     }
@@ -694,25 +750,24 @@ export default function PhotoBoothKiosk() {
     setPrintSuccess(false);
 
     try {
-      const response = await fetch("/api/print", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          photoId: compiledPhotoRecord.id,
+      const { error } = await supabase
+        .from("print_job_logs")
+        .insert({
+          id: `prt-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          photo_id: compiledPhotoRecord.id,
           size: activeEvent.layoutType === "strip" ? "2x6" : "4x6",
-          copies: printCopies
-        })
-      });
+          copies: printCopies,
+          status: "pending",
+          printer_name: "Default Kiosk Printer",
+        });
 
-      const data = await response.json();
-      if (data.success) {
-        setPrintSuccess(true);
-        setTimeout(() => setPrintSuccess(false), 3000);
-      } else {
-        alert(data.message || "Printer gagal memproses.");
-      }
-    } catch (_) {
-      alert("Print service offline.");
+      if (error) throw error;
+
+      setPrintSuccess(true);
+      setTimeout(() => setPrintSuccess(false), 3000);
+    } catch (err) {
+      console.error(err);
+      alert("Layanan print offline atau database error.");
     } finally {
       setPrinting(false);
     }

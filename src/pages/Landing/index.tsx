@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../../contexts/AppContext";
+import { supabase } from "../../lib/supabaseClient";
 import {
   Camera,
   Image as ImageIcon,
@@ -322,17 +323,27 @@ export default function LandingPage() {
     if (likedPhotos.includes(photoId)) return;
 
     try {
-      const res = await fetch(`/api/gallery/${photoId}/like`, {
-        method: "POST",
-      });
-      const d = await res.json();
-      if (d.success) {
-        setLikedPhotos((prev) => [...prev, photoId]);
-        if (fetchInitialData) await fetchInitialData();
-      }
+      const { data: photoData, error: fetchErr } = await supabase
+        .from("photos")
+        .select("like_count")
+        .eq("id", photoId)
+        .single();
+      
+      if (fetchErr) throw fetchErr;
+
+      const currentLikes = photoData?.like_count || 0;
+      const { error: updateErr } = await supabase
+        .from("photos")
+        .update({ like_count: currentLikes + 1 })
+        .eq("id", photoId);
+
+      if (updateErr) throw updateErr;
+
+      setLikedPhotos((prev) => [...prev, photoId]);
+      if (fetchInitialData) await fetchInitialData();
     } catch (err) {
       console.warn("Failed to live-sync like event:", err);
-      // Fallback local state if API route breaks
+      // Fallback local state if API fails
       setLikedPhotos((prev) => [...prev, photoId]);
     }
   };

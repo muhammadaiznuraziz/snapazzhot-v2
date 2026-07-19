@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
+import { supabase } from "../../lib/supabaseClient";
 import {
   Download,
   Camera,
@@ -172,10 +173,27 @@ export default function DownloadPortal() {
       const targetId = id || "SAH-260718-2022";
       try {
         setLoading(true);
-        const res = await fetch(`/api/gallery/${targetId}`);
-        const data = await res.json();
-        if (data.success && data.data) {
-          const photoRecord = data.data;
+        const { data: dbPhoto, error: photoErr } = await supabase
+          .from("photos")
+          .select("*")
+          .eq("id", targetId)
+          .single();
+        
+        if (photoErr) throw photoErr;
+
+        if (dbPhoto) {
+          const photoRecord: PhotoRecord = {
+            id: dbPhoto.id,
+            url: dbPhoto.url,
+            type: dbPhoto.type,
+            eventId: dbPhoto.event_id,
+            timestamp: dbPhoto.timestamp,
+            username: dbPhoto.username,
+            templateName: dbPhoto.template_name,
+            likeCount: dbPhoto.like_count,
+            meta: dbPhoto.meta || {},
+          };
+
           if (!photoRecord.meta) photoRecord.meta = {};
           if (!photoRecord.meta.rawPhotos)
             photoRecord.meta.rawPhotos = DEFAULT_PHOTO.meta?.rawPhotos;
@@ -183,9 +201,23 @@ export default function DownloadPortal() {
             photoRecord.meta.gifUrl = DEFAULT_PHOTO.meta?.gifUrl;
           if (!photoRecord.meta.videoUrl)
             photoRecord.meta.videoUrl = DEFAULT_PHOTO.meta?.videoUrl;
+
           setPhoto(photoRecord);
+
+          let eventName = "SNAPAZZHOT";
+          if (dbPhoto.event_id) {
+            const { data: dbEvent } = await supabase
+              .from("events")
+              .select("name")
+              .eq("id", dbPhoto.event_id)
+              .single();
+            if (dbEvent) {
+              eventName = dbEvent.name;
+            }
+          }
+
           setEvent({
-            name: "SNAPAZZHOT",
+            name: eventName,
             location: "HEART",
           });
         } else {
@@ -196,6 +228,7 @@ export default function DownloadPortal() {
           });
         }
       } catch (err) {
+        console.error("fetchSession failed, using default fallback:", err);
         setPhoto({ ...DEFAULT_PHOTO, id: targetId });
         setEvent({
           name: "SNAPAZZHOT",

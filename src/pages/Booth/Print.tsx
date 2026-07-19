@@ -18,6 +18,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "../../contexts/AppContext";
 import { renderMedia } from "../../utils/render";
+import { supabase } from "../../lib/supabaseClient";
 
 interface BtsSlotProps {
   key?: React.Key;
@@ -233,14 +234,15 @@ export default function BoothPrint() {
     if (!compiledPhotoRecord) return;
     setSavingPublic(true);
     try {
-      await fetch(`/api/gallery/${compiledPhotoRecord.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          isPublic: checked,
+      const { error } = await supabase
+        .from("photos")
+        .update({
+          is_public: checked,
           username: checked ? username : "Guest",
-        }),
-      });
+        })
+        .eq("id", compiledPhotoRecord.id);
+
+      if (error) throw error;
       await fetchInitialData();
     } catch (e) {
       console.warn("Failed to update privacy settings", e);
@@ -255,13 +257,14 @@ export default function BoothPrint() {
     const delayDebounce = setTimeout(async () => {
       setSavingPublic(true);
       try {
-        await fetch(`/api/gallery/${compiledPhotoRecord.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const { error } = await supabase
+          .from("photos")
+          .update({
             username: username || "Guest",
-          }),
-        });
+          })
+          .eq("id", compiledPhotoRecord.id);
+
+        if (error) throw error;
         await fetchInitialData();
       } catch (e) {
         console.warn("Failed to update username", e);
@@ -287,35 +290,29 @@ export default function BoothPrint() {
     setEmailSent(false);
 
     try {
-      const response = await fetch("/api/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          photoId: compiledPhotoRecord.id,
-          downloadUrl: new URL(
-            compiledPhotoRecord.url,
-            window.location.origin,
-          ).toString(),
-          gifUrl: sessionGifUrl
-            ? new URL(sessionGifUrl, window.location.origin).toString()
-            : undefined,
-          videoUrl: sessionVideoUrl
-            ? new URL(sessionVideoUrl, window.location.origin).toString()
-            : undefined,
-        }),
-      });
+      const downloadUrl = new URL(
+        compiledPhotoRecord.url,
+        window.location.origin,
+      ).toString();
 
-      const data = await response.json();
-      if (data.success) {
-        setEmailSent(true);
-        setEmail("");
-        setTimeout(() => setEmailSent(false), 4000);
-      } else {
-        alert(data.message || "Gagal mengirim email.");
-      }
-    } catch (_) {
-      alert("Gagal menghubungi server SMTP backend.");
+      const { error } = await supabase
+        .from("email_logs")
+        .insert({
+          id: `eml-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          email: email,
+          photo_id: compiledPhotoRecord.id,
+          download_url: downloadUrl,
+          status: "pending",
+        });
+
+      if (error) throw error;
+
+      setEmailSent(true);
+      setEmail("");
+      setTimeout(() => setEmailSent(false), 4000);
+    } catch (err) {
+      console.error(err);
+      alert("Gagal mengirim email: Database error.");
     } finally {
       setEmailSending(false);
     }
@@ -327,25 +324,24 @@ export default function BoothPrint() {
     setPrintSuccess(false);
 
     try {
-      const response = await fetch("/api/print", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          photoId: compiledPhotoRecord.id,
+      const { error } = await supabase
+        .from("print_job_logs")
+        .insert({
+          id: `prt-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          photo_id: compiledPhotoRecord.id,
           size: activeEvent?.layoutType === "strip" ? "2x6" : "4x6",
           copies: printCopies,
-        }),
-      });
+          status: "pending",
+          printer_name: "Default Kiosk Printer",
+        });
 
-      const data = await response.json();
-      if (data.success) {
-        setPrintSuccess(true);
-        setTimeout(() => setPrintSuccess(false), 4000);
-      } else {
-        alert(data.message || "Printer gagal memproses.");
-      }
-    } catch (_) {
-      alert("Layanan print offline.");
+      if (error) throw error;
+
+      setPrintSuccess(true);
+      setTimeout(() => setPrintSuccess(false), 4000);
+    } catch (err) {
+      console.error(err);
+      alert("Layanan print offline atau error database.");
     } finally {
       setPrinting(false);
     }
