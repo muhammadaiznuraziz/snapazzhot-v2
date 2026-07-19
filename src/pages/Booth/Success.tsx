@@ -27,11 +27,21 @@ export default function BoothSuccess() {
     };
   }, [navigate]);
 
-  // Safely generate download URL only on client side
-  const downloadUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/download/${compiledPhotoRecord?.id || "photo-dummy"}`
+  // UPGRADE LEVEL PRO: Gunakan production/online domain sebagai fallback jika berjalan di local environment kiosk
+  const getBaseUrl = () => {
+    if (typeof window === "undefined") return "";
+    const origin = window.location.origin;
+    // Jika kiosk berjalan di localhost / IP lokal, ganti dengan domain produksi Vercel Anda agar bisa diakses online
+    if (origin.includes("localhost") || origin.includes("127.0.0.1") || origin.startsWith("http://192.")) {
+      return "https://snapazzhot-v2.vercel.app"; 
+    }
+    return origin;
+  };
+
+  const downloadUrl = compiledPhotoRecord?.id
+    ? `${getBaseUrl()}/download/${compiledPhotoRecord.id}`
     : "";
-  // Generate QR image URL for fallback (used only if client cannot render QR component)
+
   const qrFallbackUrl = downloadUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(downloadUrl)}&color=000000&bgcolor=ffffff`
     : "";
@@ -79,17 +89,23 @@ export default function BoothSuccess() {
           </div>
         </div>
 
-        {/* TWO-COLUMN HORIZONTAL GRID TO PREVENT VERTICAL OVERFLOW */}
+        {/* TWO-COLUMN HORIZONTAL GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
           {/* COLUMN 1: INTERACTIVE QR CONTROLLER */}
           <div className="bg-black/40 border border-white/5 p-5 rounded-2xl flex flex-col items-center justify-center text-center gap-4 shadow-sm">
-            <div className="bg-white p-2.5 rounded-xl border border-white/10 inline-block shadow-lg transition transform hover:scale-105 duration-300">
-              <img
-                src={qrFallbackUrl}
-                alt="Scan to Download"
-                className="w-36 h-36 object-contain mx-auto"
-                loading="eager"
-              />
+            <div className="bg-white p-2.5 rounded-xl border border-white/10 inline-block shadow-lg transition transform hover:scale-105 duration-300 min-h-[160px] min-w-[160px] flex items-center justify-center">
+              {downloadUrl ? (
+                <img
+                  src={qrFallbackUrl}
+                  alt="Scan to Download"
+                  className="w-36 h-36 object-contain mx-auto"
+                  loading="eager"
+                />
+              ) : (
+                <div className="text-xs text-neutral-800 font-bold p-4 text-center">
+                  Memproses QR Code...
+                </div>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -103,7 +119,7 @@ export default function BoothSuccess() {
               </p>
             </div>
 
-            {compiledPhotoRecord?.id && (
+            {downloadUrl && (
               <button
                 onClick={() => window.open(downloadUrl, "_blank")}
                 className="px-4 py-2 bg-white/10 hover:bg-[#bcff00] text-white hover:text-black font-['Outfit'] font-black text-[10px] uppercase tracking-widest rounded-lg transition shadow-sm cursor-pointer"
@@ -119,7 +135,7 @@ export default function BoothSuccess() {
               <div className="flex justify-between text-xs font-black text-white/40 uppercase tracking-wider border-b border-white/10 pb-2.5">
                 <span>DETAIL SESI KIOSK</span>
                 <span className="text-[#bcff00] font-black">
-                  SYNC COMPLETED
+                  {downloadUrl ? "SYNC COMPLETED" : "SYNCHRONIZING..."}
                 </span>
               </div>
 
