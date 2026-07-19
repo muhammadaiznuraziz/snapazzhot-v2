@@ -11,6 +11,5 @@
   "routes": [
     { "src": "/download/.*", "dest": "/index.html" },
     { "src": "/(.*)", "dest": "/index.html" }
-  ],
-  "handle": "filesystem"
+  ]
 }
