@@ -27,8 +27,14 @@ export default function BoothSuccess() {
     };
   }, [navigate]);
 
-  const downloadUrl = `${window.location.origin}/download/${compiledPhotoRecord?.id || "photo-dummy"}`;
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(downloadUrl)}&color=000000&bgcolor=ffffff`;
+  // Safely generate download URL only on client side
+  const downloadUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/download/${compiledPhotoRecord?.id || "photo-dummy"}`
+    : "";
+  // Generate QR image URL for fallback (used only if client cannot render QR component)
+  const qrFallbackUrl = downloadUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(downloadUrl)}&color=000000&bgcolor=ffffff`
+    : "";
 
   return (
     <motion.div
@@ -79,7 +85,7 @@ export default function BoothSuccess() {
           <div className="bg-black/40 border border-white/5 p-5 rounded-2xl flex flex-col items-center justify-center text-center gap-4 shadow-sm">
             <div className="bg-white p-2.5 rounded-xl border border-white/10 inline-block shadow-lg transition transform hover:scale-105 duration-300">
               <img
-                src={qrImageUrl}
+                src={qrFallbackUrl}
                 alt="Scan to Download"
                 className="w-36 h-36 object-contain mx-auto"
                 loading="eager"
