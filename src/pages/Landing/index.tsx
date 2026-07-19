@@ -23,7 +23,6 @@ import {
   Sparkle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import QRCode from "react-qr-code";
 import SocialCards from "../../components/ui/card-fan-carousel";
 
 const FALLBACK_PHOTOS: Record<string, string[]> = {
@@ -426,11 +425,8 @@ export default function LandingPage() {
                 >
                   Lihat Galeri Cetak
                   <ImageIcon className="w-5 h-5 text-white" />
-                 </motion.button>
-               </div>
-               <div className="flex justify-center mt-4">
-                 <QRCode value={`${window.location.origin}/gallery`} size={128} />
-               </div>
+                </motion.button>
+              </div>
             </motion.div>
 
             {/* Right Card Stack Column: Fluid Height allocation dynamically scaled per screen profile */}
