@@ -322,13 +322,16 @@ export default function LandingPage() {
     if (e) e.stopPropagation();
     if (likedPhotos.includes(photoId)) return;
 
+    // Optimistic UI update - update local state immediately
+    setLikedPhotos((prev) => [...prev, photoId]);
+
     try {
       const { data: photoData, error: fetchErr } = await supabase
         .from("photos")
         .select("like_count")
         .eq("id", photoId)
         .single();
-      
+
       if (fetchErr) throw fetchErr;
 
       const currentLikes = photoData?.like_count || 0;
@@ -338,13 +341,10 @@ export default function LandingPage() {
         .eq("id", photoId);
 
       if (updateErr) throw updateErr;
-
-      setLikedPhotos((prev) => [...prev, photoId]);
-      if (fetchInitialData) await fetchInitialData();
     } catch (err) {
       console.warn("Failed to live-sync like event:", err);
-      // Fallback local state if API fails
-      setLikedPhotos((prev) => [...prev, photoId]);
+      // Rollback on failure
+      setLikedPhotos((prev) => prev.filter((id) => id !== photoId));
     }
   };
 

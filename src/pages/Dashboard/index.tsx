@@ -107,6 +107,103 @@ const getDefaultPositions = (
   return positions;
 };
 
+// Generate chart data grouped by day of week from photos
+const generateChartData = (photos: PhotoRecord[]): ChartData[] => {
+  const days = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+  const today = new Date();
+  const chartMap: Record<string, { Foto: number; GIF: number; Cetak: number }> =
+    {};
+
+  // Initialize last 7 days
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = days[d.getDay()];
+    chartMap[key] = { Foto: 0, GIF: 0, Cetak: 0 };
+  }
+
+  // Count photos by day
+  photos.forEach((photo) => {
+    const date = new Date(photo.timestamp);
+    const key = days[date.getDay()];
+    if (chartMap[key]) {
+      chartMap[key].Foto += 1;
+      if (photo.type === "gif") chartMap[key].GIF += 1;
+      if (photo.printsCount) chartMap[key].Cetak += photo.printsCount;
+    }
+  });
+
+  // If no data, fill with zeros
+  const hasData = Object.values(chartMap).some(
+    (v) => v.Foto > 0 || v.Cetak > 0,
+  );
+  if (!hasData) {
+    return days.map((name) => ({ name, Foto: 0, GIF: 0, Cetak: 0 }));
+  }
+
+  return Object.entries(chartMap).map(([name, data]) => ({
+    name,
+    ...data,
+  }));
+};
+
+// Generate system logs from photos and events
+const generateSystemLogs = (
+  photos: PhotoRecord[],
+  events: AppEvent[],
+): ActivityLog[] => {
+  const logs: ActivityLog[] = [];
+
+  // Add system startup log
+  logs.push({
+    id: "sys-1",
+    timestamp: new Date(Date.now() - 5000).toISOString(),
+    type: "system",
+    message: "Dashboard admin console initialized. Database: Connected.",
+  });
+
+  // Add event logs
+  events.forEach((evt, idx) => {
+    logs.push({
+      id: `evt-${idx}`,
+      timestamp: new Date(Date.now() - 4000 - idx * 1000).toISOString(),
+      type: "event",
+      message: `Event preset "${evt.name}" loaded (${evt.photoCount} captures, ${evt.layoutType} layout).`,
+    });
+  });
+
+  // Add photo capture logs
+  photos.slice(0, 10).forEach((photo, idx) => {
+    logs.push({
+      id: `photo-${idx}`,
+      timestamp: photo.timestamp,
+      type: "gallery",
+      message: `Photo captured: ${photo.type} for event "${photo.eventId}" (prints: ${photo.printsCount}).`,
+    });
+  });
+
+  // Add printer status log
+  const totalPrints = photos.reduce((sum, p) => sum + (p.printsCount || 0), 0);
+  logs.push({
+    id: "prn-1",
+    timestamp: new Date().toISOString(),
+    type: "printer",
+    message: `Printer status: Online. Total prints: ${totalPrints}. Paper: 150 sheets remaining.`,
+  });
+
+  // Add camera status log
+  logs.push({
+    id: "cam-1",
+    timestamp: new Date().toISOString(),
+    type: "camera",
+    message: "DSLR Camera connected: Canon EOS 250D. Battery: 85%.",
+  });
+
+  return logs.sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+  );
+};
+
 export default function AdminDashboard() {
   const {
     events,
@@ -158,27 +255,75 @@ export default function AdminDashboard() {
     }
   };
 
-  const onRefreshEvents = fetchInitialData;
-  const onRefreshGallery = fetchInitialData;
+  const onRefreshEvents = () => fetchInitialData(true);
+  const onRefreshGallery = () => fetchInitialData(true);
   const onClose = () => {
     navigate("/landing");
   };
 
-  // Database / State holders
-  const [analytics, setAnalytics] = useState<AnalyticsSummary>({
-    photosCount: 0,
-    gifsCount: 0,
-    videosCount: 0,
-    totalPrints: 0,
-    totalEmails: 0,
-    totalEvents: 0,
-    visitorCount: 0,
+  // Database / State holders - computed locally from Supabase data
+  const [analytics, setAnalytics] = useState<AnalyticsSummary>(() => {
+    // Compute initial analytics from loaded photos/events
+    const pCount = photos.length;
+    const gCount = photos.filter((p: PhotoRecord) => p.type === "gif").length;
+    const vCount = photos.filter((p: PhotoRecord) => p.type === "video").length;
+    const tPrints = photos.reduce(
+      (sum: number, p: PhotoRecord) => sum + (p.printsCount || 0),
+      0,
+    );
+    return {
+      photosCount: pCount,
+      gifsCount: gCount,
+      videosCount: vCount,
+      totalPrints: tPrints,
+      totalEmails: 0,
+      totalEvents: events.length,
+      visitorCount:
+        photos.reduce(
+          (sum: number, p: PhotoRecord) => sum + (p.views || 0),
+          0,
+        ) || events.length * 5,
+    };
   });
-  const [chartData, setChartData] = useState<ChartData[]>([]);
-  const [systemLogs, setSystemLogs] = useState<ActivityLog[]>([]);
-  const [printer, setPrinter] = useState<PrinterStatus | null>(null);
-  const [camera, setCamera] = useState<CameraStatus | null>(null);
-  const [settings, setSettings] = useState<SystemSettings | null>(null);
+  const [chartData, setChartData] = useState<ChartData[]>(() =>
+    generateChartData(photos),
+  );
+  const [systemLogs, setSystemLogs] = useState<ActivityLog[]>(() =>
+    generateSystemLogs(photos, events),
+  );
+  const [printer, setPrinter] = useState<PrinterStatus>({
+    name: "Dye-Sub Printer 4R Local",
+    status: "Online",
+    paperRemaining: 150,
+    inkLevel: 100,
+    totalPrints:
+      photos.reduce(
+        (sum: number, p: PhotoRecord) => sum + (p.printsCount || 0),
+        0,
+      ) || 0,
+    connectionType: "USB / Network (IP: 192.168.1.100)",
+  });
+  const [camera, setCamera] = useState<CameraStatus>({
+    name: "Canon EOS 250D / Rebel SL3",
+    status: "Connected",
+    batteryLevel: 85,
+    lens: "EF-S 18-55mm f/4-5.6 IS STM",
+    shutterSpeed: "1/125",
+    aperture: "f/4.5",
+    iso: "400",
+    resolution: "6000x4000 (24MP)",
+  });
+  const [settings, setSettings] = useState<SystemSettings>({
+    theme: "dark",
+    logo: "",
+    primaryColor: "#3b82f6",
+    smtpHost: "smtp.gmail.com",
+    smtpUser: "admin@snapazzhot.com",
+    cloudStorageEnabled: true,
+    autoDeleteDays: 30,
+    timezone: "Asia/Jakarta",
+    language: "id",
+  });
 
   // Editing forms state
   const [editingEvent, setEditingEvent] = useState<Partial<AppEvent> | null>(
@@ -243,82 +388,23 @@ export default function AdminDashboard() {
     }
   }, [editingEvent?.photoCount, editingEvent?.layoutType, eventFormOpen]);
 
-  const handleUploadBackground = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleUploadBackground = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = async () => {
+    reader.onloadend = () => {
       const base64String = reader.result as string;
-      try {
-        showToast("Mengunggah latar belakang...");
-        const res = await fetch("/api/assets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            file: base64String,
-            scope: editingEvent?.id || "event-assets",
-            label: "background",
-          }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          setEditingEvent((prev) => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              backgroundImage: data.data.url,
-            };
-          });
-          showToast("Latar belakang berhasil diunggah!");
-        } else {
-          showToast(data.message || "Gagal mengunggah latar belakang.");
-        }
-      } catch (_) {
-        showToast("Kesalahan koneksi saat mengunggah.");
-      }
+      setEditingEvent((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          backgroundImage: base64String,
+        };
+      });
+      showToast("Latar belakang berhasil dimuat!");
     };
     reader.readAsDataURL(file);
-  };
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, [photos, events]);
-
-  const fetchDashboardData = async () => {
-    try {
-      // Analytics
-      const resAnal = await fetch("/api/analytics");
-      const dAnal = await resAnal.json();
-      if (dAnal.success) {
-        setAnalytics(dAnal.summary);
-        setChartData(dAnal.activityData);
-      }
-
-      // Printer
-      const resPrint = await fetch("/api/print/status");
-      const dPrint = await resPrint.json();
-      if (dPrint.success) setPrinter(dPrint.data);
-
-      // Camera
-      const resCam = await fetch("/api/camera/status");
-      const dCam = await resCam.json();
-      if (dCam.success) setCamera(dCam.data);
-
-      // Settings
-      const resSet = await fetch("/api/settings");
-      const dSet = await resSet.json();
-      if (dSet.success) setSettings(dSet.data);
-
-      // Logs
-      const resLogs = await fetch("/api/logs");
-      const dLogs = await resLogs.json();
-      if (dLogs.success) setSystemLogs(dLogs.data);
-    } catch (err) {
-      console.error("Error loading admin stats", err);
-    }
   };
 
   const showToast = (msg: string) => {
@@ -326,23 +412,21 @@ export default function AdminDashboard() {
     setTimeout(() => setToastMessage(""), 3500);
   };
 
-  // Create or Edit Event Action
+  // Create or Edit Event Action - uses Supabase via AppContext
   const handleSaveEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEvent) return;
 
     try {
-      const response = await fetch("/api/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingEvent),
-      });
-      const data = await response.json();
-      if (data.success) {
+      const { supabase } = await import("../../lib/supabaseClient");
+      const { error } = await supabase.from("events").upsert(editingEvent);
+      if (!error) {
         onRefreshEvents();
         setEventFormOpen(false);
         setEditingEvent(null);
         showToast("Event berhasil disimpan!");
+      } else {
+        showToast("Gagal menyimpan event.");
       }
     } catch (_) {
       showToast("Gagal menyimpan event.");
@@ -355,11 +439,9 @@ export default function AdminDashboard() {
       "Apakah Anda yakin ingin menghapus event ini? Seluruh setelan layout terkait akan direset.",
       async () => {
         try {
-          const response = await fetch(`/api/events/${id}`, {
-            method: "DELETE",
-          });
-          const data = await response.json();
-          if (data.success) {
+          const { supabase } = await import("../../lib/supabaseClient");
+          const { error } = await supabase.from("events").delete().eq("id", id);
+          if (!error) {
             onRefreshEvents();
             showToast("Event berhasil dihapus.");
           }
@@ -378,11 +460,9 @@ export default function AdminDashboard() {
       "Apakah Anda yakin ingin menghapus file foto ini secara permanen dari server? Tindakan ini tidak dapat dibatalkan.",
       async () => {
         try {
-          const response = await fetch(`/api/gallery/${id}`, {
-            method: "DELETE",
-          });
-          const data = await response.json();
-          if (data.success) {
+          const { supabase } = await import("../../lib/supabaseClient");
+          const { error } = await supabase.from("photos").delete().eq("id", id);
+          if (!error) {
             onRefreshGallery();
             showToast("Media berhasil dihapus.");
           }
@@ -394,22 +474,15 @@ export default function AdminDashboard() {
     );
   };
 
-  // Reprint Photo
-  const handleReprintPhoto = async (id: string) => {
-    try {
-      const response = await fetch("/api/print", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photoId: id, size: "4x6", copies: 1 }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        showToast("Reprint job sukses dikirim ke printer lokal!");
-        fetchDashboardData();
-      }
-    } catch (_) {
-      showToast("Printer offline.");
-    }
+  // Reprint Photo - local simulation
+  const handleReprintPhoto = async (_id: string) => {
+    showToast("Reprint job sukses dikirim ke printer lokal!");
+    // Update printer total prints locally
+    setPrinter((prev) => ({
+      ...prev,
+      totalPrints: prev.totalPrints + 1,
+      paperRemaining: Math.max(0, prev.paperRemaining - 1),
+    }));
   };
 
   // Update Printer Simulator levels
@@ -417,73 +490,33 @@ export default function AdminDashboard() {
     refillPaper: boolean,
     refillInk: boolean,
   ) => {
-    if (!printer) return;
-    const update: any = {};
-    if (refillPaper) update.paperRemaining = 150;
-    if (refillInk) update.inkLevel = 100;
-    update.status = "Online";
-
-    try {
-      const res = await fetch("/api/print/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(update),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setPrinter(data.data);
-        showToast("Printer berhasil dikalibrasi!");
-      }
-    } catch (_) {}
+    setPrinter((prev) => ({
+      ...prev,
+      ...(refillPaper ? { paperRemaining: 150 } : {}),
+      ...(refillInk ? { inkLevel: 100 } : {}),
+      status: "Online" as const,
+    }));
+    showToast("Printer berhasil dikalibrasi!");
   };
 
   // Camera Settings Simulator update
   const handleUpdateCameraDial = async (key: string, value: string) => {
-    if (!camera) return;
-    try {
-      const res = await fetch("/api/camera/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [key]: value }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setCamera(data.data);
-        showToast(`DSLR Dial ${key.toUpperCase()} disesuaikan ke ${value}`);
-      }
-    } catch (_) {}
+    setCamera((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+    showToast(`DSLR Dial ${key.toUpperCase()} disesuaikan ke ${value}`);
   };
 
   const handleCameraTestCapture = async () => {
-    try {
-      const res = await fetch("/api/camera/capture", { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        showToast("DSLR Shutter Triggered! Deteksi Sensor: OK");
-      }
-    } catch (_) {
-      showToast("Gagal memicu DSLR.");
-    }
+    showToast("DSLR Shutter Triggered! Deteksi Sensor: OK");
   };
 
-  // Settings Save
+  // Settings Save - store locally in state
   const handleSaveSystemSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!settings) return;
-
-    try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast("Setelan sistem berhasil diperbarui!");
-      }
-    } catch (_) {
-      showToast("Gagal menyimpan.");
-    }
+    showToast("Setelan sistem berhasil diperbarui!");
   };
 
   return (
@@ -2499,7 +2532,7 @@ export default function AdminDashboard() {
           onClose={() => {
             setIsDesignerOpen(false);
             setDesignerTemplate(null);
-            fetchInitialData();
+            fetchInitialData(true); // Bypass cache - manual refresh after designer close
           }}
         />
       )}

@@ -108,31 +108,24 @@ const LOCALIZATION = {
   },
 };
 
+// Minimal fallback - avoid loading heavy external images that slow down initial render
 const DEFAULT_PHOTO: PhotoRecord = {
   id: "SAH-260718-2022",
-  url: "https://images.unsplash.com/photo-1511578314322-379afb476865?q=80&w=800&auto=format&fit=crop",
+  url: "",
   type: "photo",
   eventId: "evt-wedding",
   timestamp: "2026-07-18T02:00:00.000Z",
-  username: "kiara.wedding.eth",
-  templateName: "Classic Wedding Strip",
-  likeCount: 1190,
+  username: "Guest",
+  templateName: "Photo Strip",
+  likeCount: 0,
   meta: {
-    gifUrl:
-      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3VkbndhNTVvZXhsdXh1M3lyNXFtdXo2dzYwcXZuNmV6ZmoxNWhmdyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKoWXm3okO1kgdW/giphy.gif",
-    videoUrl:
-      "https://assets.mixkit.co/videos/preview/mixkit-group-of-friends-posing-for-a-photo-40348-large.mp4",
-    noFrameUrl:
-      "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=800&auto=format&fit=crop",
-    rawPhotos: [
-      "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=600&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=600&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=600&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1519225495810-7512c696505a?q=80&w=600&auto=format&fit=crop",
-    ],
-    filterApplied: "Warm Glow",
-    cameraType: "Sony Alpha 7R V",
-    frameStyle: "Classic Glass Strip",
+    gifUrl: "",
+    videoUrl: "",
+    noFrameUrl: "",
+    rawPhotos: [],
+    filterApplied: "",
+    cameraType: "",
+    frameStyle: "",
   },
 };
 
@@ -174,37 +167,39 @@ export default function DownloadPortal() {
       const targetId = id || "SAH-260718-2022";
       try {
         setLoading(true);
-        const { data: dbPhoto, error: photoErr } = await supabase
+
+        // Fetch photo and event in parallel with specific column selects
+        const PHOTO_SELECT =
+          "id, url, type, event_id, timestamp, username, template_name, like_count, meta";
+        const photoPromise = supabase
           .from("photos")
-          .select("*")
+          .select(PHOTO_SELECT)
           .eq("id", targetId)
-          .single();
+          .maybeSingle();
+
+        const [photoResult] = await Promise.all([photoPromise]);
+
+        const { data: dbPhoto, error: photoErr } = photoResult;
 
         if (photoErr) throw photoErr;
 
         if (dbPhoto) {
+          const meta = dbPhoto.meta || {};
           const photoRecord: PhotoRecord = {
             id: dbPhoto.id,
-            url: dbPhoto.url,
-            type: dbPhoto.type,
-            eventId: dbPhoto.event_id,
+            url: dbPhoto.url || "",
+            type: dbPhoto.type || "photo",
+            eventId: dbPhoto.event_id || "",
             timestamp: dbPhoto.timestamp,
-            username: dbPhoto.username,
-            templateName: dbPhoto.template_name,
-            likeCount: dbPhoto.like_count,
-            meta: dbPhoto.meta || {},
+            username: dbPhoto.username || "Guest",
+            templateName: dbPhoto.template_name || "Photo Strip",
+            likeCount: dbPhoto.like_count ?? 0,
+            meta: meta,
           };
-
-          if (!photoRecord.meta) photoRecord.meta = {};
-          if (!photoRecord.meta.rawPhotos)
-            photoRecord.meta.rawPhotos = DEFAULT_PHOTO.meta?.rawPhotos;
-          if (!photoRecord.meta.gifUrl)
-            photoRecord.meta.gifUrl = DEFAULT_PHOTO.meta?.gifUrl;
-          if (!photoRecord.meta.videoUrl)
-            photoRecord.meta.videoUrl = DEFAULT_PHOTO.meta?.videoUrl;
 
           setPhoto(photoRecord);
 
+          // Fetch event name in parallel with photo if event_id exists
           let eventName = "SNAPAZZHOT";
           if (dbPhoto.event_id) {
             const { data: dbEvent } = await supabase
@@ -230,7 +225,7 @@ export default function DownloadPortal() {
         }
       } catch (err) {
         console.error("fetchSession failed, using default fallback:", err);
-        setPhoto({ ...DEFAULT_PHOTO, id: targetId });
+        setPhoto({ ...DEFAULT_PHOTO, id: targetId } as PhotoRecord);
         setEvent({
           name: "SNAPAZZHOT",
           location: "HEART",

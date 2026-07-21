@@ -143,3 +143,42 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('photobooth-media', 'photobooth-media', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
+
+-- 12. Storage Row-Level Security (RLS) Policies for photobooth-media bucket
+-- Required for anonymous/public uploads from FrameDesigner and photo capture.
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+    -- SELECT policy: Allow anyone to view/download files
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Public SELECT photobooth-media'
+    ) THEN
+        CREATE POLICY "Public SELECT photobooth-media" ON storage.objects
+            FOR SELECT USING (bucket_id = 'photobooth-media');
+    END IF;
+
+    -- INSERT policy: Allow anyone to upload files
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Public INSERT photobooth-media'
+    ) THEN
+        CREATE POLICY "Public INSERT photobooth-media" ON storage.objects
+            FOR INSERT WITH CHECK (bucket_id = 'photobooth-media');
+    END IF;
+
+    -- UPDATE policy: Allow anyone to update files (e.g., upsert)
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Public UPDATE photobooth-media'
+    ) THEN
+        CREATE POLICY "Public UPDATE photobooth-media" ON storage.objects
+            FOR UPDATE USING (bucket_id = 'photobooth-media') WITH CHECK (bucket_id = 'photobooth-media');
+    END IF;
+
+    -- DELETE policy: Allow anyone to delete files (admin operations)
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Public DELETE photobooth-media'
+    ) THEN
+        CREATE POLICY "Public DELETE photobooth-media" ON storage.objects
+            FOR DELETE USING (bucket_id = 'photobooth-media');
+    END IF;
+END $$;

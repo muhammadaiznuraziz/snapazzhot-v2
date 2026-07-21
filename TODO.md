@@ -1,19 +1,28 @@
-# Refactor Express → Frontend Vite + Supabase (tanpa server.ts)
+# Dashboard API Fix - TODO
 
-## Steps
+## Step 1: Compute analytics locally from Supabase data
 
-1. Update `package.json` scripts & remove dependencies: `express`, `@types/express`, `esbuild`.
-2. Delete `server.ts` (backend Express) and ensure no scripts reference it.
-3. Create `src/lib/supabase.ts` using `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`.
-4. Refactor `src/contexts/AppContext.tsx`:
-   - Replace `/api/templates`, `/api/events`, `/api/gallery` with Supabase queries.
-   - Replace template CRUD with Supabase upsert/delete.
-5. Refactor Gallery/Download/Dashboard/Booth pages:
-   - Replace all `fetch('/api/...')` usages with Supabase direct access:
-     - `events`, `templates`, `photos` (gallery)
-     - like/update privacy
-     - upload pipeline via Supabase Storage + insert into `photos`
-     - settings/logs/printer/camera/email/analytics: use Supabase tables (or safe client-side fallbacks).
-6. Ensure no `/api/*` strings remain in `src/`.
-7. Run `npm run dev` and `npm run build`.
-8. Verify deploy behavior: no `GET /api/events|/api/templates|/api/gallery` 404.
+- [x] Remove `fetchDashboardData()` API calls
+- [x] Compute `analytics` (photosCount, gifsCount, videosCount, totalPrints, totalEmails, totalEvents, visitorCount) from `photos[]` and `events[]`
+- [x] Generate `chartData` grouped by day from photos
+
+## Step 2: Replace Printer/Camera/Settings with local defaults
+
+- [x] Initialize `printer` with default mock data
+- [x] Initialize `camera` with default mock data
+- [x] Initialize `settings` with default mock data
+- [x] Make update handlers work locally (no API calls)
+
+## Step 3: Generate Activity Logs locally
+
+- [x] Generate `systemLogs` from photos and events timestamps
+
+## Step 4: Remove all `/api/*` fetch calls
+
+- [x] Remove `guardedFetch` function
+- [x] Remove all `console.warn` messages about non-JSON responses
+- [x] Clean up `initialDashboardLoadRef`
+
+## Step 5: Test
+
+- [x] Verify Dashboard loads without console warnings

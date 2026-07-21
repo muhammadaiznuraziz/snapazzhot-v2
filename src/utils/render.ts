@@ -90,7 +90,17 @@ export function renderMedia({
         ctx.scale(-1, 1);
         ctx.translate(-(x + width / 2), -(y + height / 2));
       }
-      ctx.drawImage(source, 0, 0, srcWidth, srcHeight, x + offset, y, w, height);
+      ctx.drawImage(
+        source,
+        0,
+        0,
+        srcWidth,
+        srcHeight,
+        x + offset,
+        y,
+        w,
+        height,
+      );
       ctx.restore();
       return;
     }
@@ -125,7 +135,7 @@ export function renderMedia({
     x,
     y,
     width,
-    height
+    height,
   );
 
   ctx.restore();

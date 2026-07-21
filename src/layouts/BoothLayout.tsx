@@ -4,22 +4,101 @@ import { useApp } from "../contexts/AppContext";
 import { PhotoRecord, AppEvent } from "../types";
 import { supabase } from "../lib/supabaseClient";
 
-const anyToBlob = async (input: string) => {
+// Polyfill for ctx.roundRect for older browsers
+function safeRoundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius: number,
+) {
+  try {
+    ctx.roundRect(x, y, w, h, radius);
+  } catch (_) {
+    // Fallback: just use a regular rect path if roundRect not supported
+    ctx.rect(x, y, w, h);
+  }
+}
+
+const anyToBlob = async (input: string): Promise<Blob> => {
+  if (!input) {
+    throw new Error("Empty input provided to anyToBlob");
+  }
   if (input.startsWith("blob:")) {
-    const res = await fetch(input);
-    return await res.blob();
+    try {
+      const res = await fetch(input);
+      if (!res.ok) throw new Error(`HTTP ${res.status} fetching blob`);
+      return await res.blob();
+    } catch (err) {
+      throw new Error(
+        `Failed to fetch blob URL: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
   if (input.startsWith("data:")) {
-    const byteCharacters = atob(input.split(",")[1]);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    const commaIndex = input.indexOf(",");
+    if (commaIndex === -1) {
+      throw new Error("Invalid data URI format: missing comma separator");
     }
-    const byteArray = new Uint8Array(byteNumbers);
-    return new Blob([byteArray], { type: input.split(",")[0].split(":")[1].split(";")[0] });
+    const header = input.substring(0, commaIndex);
+    const base64Data = input.substring(commaIndex + 1);
+
+    // Validate base64
+    const validBase64 = /^[A-Za-z0-9+/=]+$/.test(base64Data.replace(/\s/g, ""));
+    if (!validBase64) {
+      console.warn(
+        "anyToBlob: base64 contains invalid characters, attempting decode anyway",
+      );
+    }
+
+    try {
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+
+      // Extract MIME type from header
+      let mimeType = "image/png"; // default
+      const mimeMatch = header.match(/data:([^;]+)/);
+      if (mimeMatch) {
+        mimeType = mimeMatch[1];
+      }
+
+      return new Blob([byteArray], { type: mimeType });
+    } catch (err) {
+      throw new Error(
+        `Failed to decode base64 data: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
-  throw new Error("Invalid base64 or blob URL");
+  throw new Error(
+    `Invalid input type: must be a data: URI or blob: URL (got prefix: ${input.substring(0, 20)}...)`,
+  );
 };
+
+/**
+ * Maps filterId to a standard CSS filter string for Canvas 2D rendering.
+ * Must stay in sync with AVAILABLE_FILTERS in Booth/Editor.tsx.
+ */
+export function getCanvasFilterString(filterId: string): string {
+  switch (filterId) {
+    case "grayscale":
+      return "grayscale(1)";
+    case "sepia":
+      return "sepia(1)";
+    case "vintage":
+      return "sepia(0.2) saturate(0.8) contrast(1.1)";
+    case "cool":
+      return "saturate(0.9) hue-rotate(10deg) contrast(1.05)";
+    case "vivid":
+      return "saturate(1.3) contrast(1.1)";
+    default:
+      return "none";
+  }
+}
 
 export interface StickerInstance {
   id: string;
@@ -252,11 +331,7 @@ export default function BoothLayout() {
         setCountdownSeconds(activeEvent.countdown);
         setSelectedFrameId(activeEvent.frameId);
         setSelectedLayoutType(activeEvent.layoutType || "strip");
-        setMirror(
-          activeEvent.mirrorEnabled !== undefined
-            ? activeEvent.mirrorEnabled
-            : true,
-        );
+        setMirror(activeEvent.mirrorEnabled === true);
         lastSyncedEventIdRef.current = activeEvent.id;
       }
     }
@@ -1044,15 +1119,19 @@ export default function BoothLayout() {
       canvas.width = template.canvasWidth || 1200;
       canvas.height = template.canvasHeight || 800;
 
-      // 1. Draw Background Image if any
+      // 1. Draw Background Image if any (with crossOrigin to prevent canvas taint)
       if (template.backgroundImage) {
         await new Promise((resolve) => {
           const bgImg = new Image();
+          bgImg.crossOrigin = "anonymous";
           bgImg.onload = () => {
             ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
             resolve(null);
           };
           bgImg.onerror = () => {
+            console.warn(
+              "Failed to load template backgroundImage, using fallback color",
+            );
             ctx.fillStyle = activeEvent.themeColor || "#ffffff";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             resolve(null);
@@ -1133,7 +1212,8 @@ export default function BoothLayout() {
               img.onload = () => {
                 ctx.save();
                 ctx.beginPath();
-                ctx.roundRect(
+                safeRoundRect(
+                  ctx,
                   pixelX,
                   pixelY,
                   pixelWidth,
@@ -1257,6 +1337,7 @@ export default function BoothLayout() {
           if (el.textValue && el.textValue.startsWith("data:image")) {
             await new Promise((resolve) => {
               const img = new Image();
+              img.crossOrigin = "anonymous";
               img.onload = () => {
                 ctx.drawImage(img, pixelX, pixelY, pixelWidth, pixelHeight);
                 resolve(null);
@@ -1305,10 +1386,17 @@ export default function BoothLayout() {
           const frameImg = new Image();
           frameImg.crossOrigin = "anonymous";
           frameImg.onload = () => {
-            ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+            try {
+              ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+            } catch (drawErr) {
+              console.warn("Failed to draw framePng overlay:", drawErr);
+            }
             resolve(null);
           };
-          frameImg.onerror = () => resolve(null);
+          frameImg.onerror = () => {
+            console.warn("Failed to load framePng overlay image");
+            resolve(null);
+          };
           frameImg.src = template.framePng;
         });
       }
@@ -1342,6 +1430,7 @@ export default function BoothLayout() {
         if (activeEvent.backgroundImage) {
           await new Promise((resolve) => {
             const bgImg = new Image();
+            bgImg.crossOrigin = "anonymous";
             bgImg.onload = () => {
               ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
               resolve(null);
@@ -1639,7 +1728,27 @@ export default function BoothLayout() {
 
       drawFrameOverlayDecoration(ctx, canvas.width, canvas.height);
     }
-    const finalImageBase64 = canvas.toDataURL("image/png");
+    // --- Capture final image with frame overlay ---
+    let finalImageBase64 = "";
+    try {
+      finalImageBase64 = canvas.toDataURL("image/png");
+    } catch (e) {
+      console.warn("Canvas export (final) blocked (tainted canvas).", e);
+      // If canvas is tainted, try exporting a clean version without external images
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Just use the fallback - user will see a blank background
+      try {
+        finalImageBase64 = canvas.toDataURL("image/png");
+      } catch (e2) {
+        console.error("Canvas tainted even after cleanup:", e2);
+        setUploading(false);
+        alert(
+          "Gagal merender gambar final karena canvas terkontaminasi. Coba refresh halaman.",
+        );
+        return false;
+      }
+    }
 
     try {
       let videoBase64 = "";
@@ -1669,17 +1778,25 @@ export default function BoothLayout() {
       // Upload to Supabase Storage + Database
       const layoutBlob = await anyToBlob(finalImageBase64);
       const layoutName = `${activeEvent.id}/${Date.now()}-layout.png`;
-      const { error: err1 } = await supabase.storage.from("photobooth-media").upload(layoutName, layoutBlob, { contentType: "image/png" });
+      const { error: err1 } = await supabase.storage
+        .from("photobooth-media")
+        .upload(layoutName, layoutBlob, { contentType: "image/png" });
       if (err1) throw err1;
-      const { data: url1 } = supabase.storage.from("photobooth-media").getPublicUrl(layoutName);
+      const { data: url1 } = supabase.storage
+        .from("photobooth-media")
+        .getPublicUrl(layoutName);
 
       let videoUrl = "";
       if (videoBase64) {
         const videoBlob = await anyToBlob(videoBase64);
         const videoName = `${activeEvent.id}/${Date.now()}-bts.mp4`;
-        const { error: err2 } = await supabase.storage.from("photobooth-media").upload(videoName, videoBlob, { contentType: "video/mp4" });
+        const { error: err2 } = await supabase.storage
+          .from("photobooth-media")
+          .upload(videoName, videoBlob, { contentType: "video/mp4" });
         if (err2) throw err2;
-        const { data: url2 } = supabase.storage.from("photobooth-media").getPublicUrl(videoName);
+        const { data: url2 } = supabase.storage
+          .from("photobooth-media")
+          .getPublicUrl(videoName);
         videoUrl = url2.publicUrl;
       }
 
@@ -1687,9 +1804,13 @@ export default function BoothLayout() {
       if (noFrameImageBase64) {
         const noFrameBlob = await anyToBlob(noFrameImageBase64);
         const noFrameName = `${activeEvent.id}/${Date.now()}-noframe.png`;
-        const { error: err3 } = await supabase.storage.from("photobooth-media").upload(noFrameName, noFrameBlob, { contentType: "image/png" });
+        const { error: err3 } = await supabase.storage
+          .from("photobooth-media")
+          .upload(noFrameName, noFrameBlob, { contentType: "image/png" });
         if (err3) throw err3;
-        const { data: url3 } = supabase.storage.from("photobooth-media").getPublicUrl(noFrameName);
+        const { data: url3 } = supabase.storage
+          .from("photobooth-media")
+          .getPublicUrl(noFrameName);
         noFrameUrl = url3.publicUrl;
       }
 
@@ -1698,9 +1819,13 @@ export default function BoothLayout() {
         try {
           const gifBlob = await anyToBlob(sessionGifUrl);
           const gifName = `${activeEvent.id}/${Date.now()}-loop.gif`;
-          const { error: err4 } = await supabase.storage.from("photobooth-media").upload(gifName, gifBlob, { contentType: "image/gif" });
+          const { error: err4 } = await supabase.storage
+            .from("photobooth-media")
+            .upload(gifName, gifBlob, { contentType: "image/gif" });
           if (err4) throw err4;
-          const { data: url4 } = supabase.storage.from("photobooth-media").getPublicUrl(gifName);
+          const { data: url4 } = supabase.storage
+            .from("photobooth-media")
+            .getPublicUrl(gifName);
           gifUrl = url4.publicUrl;
         } catch (e) {
           console.error("Failed to upload GIF", e);
@@ -1730,8 +1855,9 @@ export default function BoothLayout() {
             gifUrl: gifUrl || undefined,
             videoUrl: videoUrl || undefined,
             noFrameUrl: noFrameUrl || undefined,
-            rawPhotos: allSnappedPhotos.length > 0 ? allSnappedPhotos : capturedFrames,
-          }
+            rawPhotos:
+              allSnappedPhotos.length > 0 ? allSnappedPhotos : capturedFrames,
+          },
         })
         .select()
         .single();
@@ -1752,7 +1878,7 @@ export default function BoothLayout() {
           templateName: dbPhoto.template_name,
           likeCount: dbPhoto.like_count,
           mirror_enabled: dbPhoto.mirror_enabled,
-          meta: dbPhoto.meta
+          meta: dbPhoto.meta,
         };
 
         setCompiledPhotoRecord(mappedPhoto);
@@ -1781,7 +1907,7 @@ export default function BoothLayout() {
     if (!source) return;
     ctx.save();
     ctx.beginPath();
-    ctx.roundRect(x, y, w, h, 12);
+    safeRoundRect(ctx, x, y, w, h, 12);
     ctx.clip();
 
     const filterId = frameFilters[frameIndex] || "normal";
@@ -1891,20 +2017,7 @@ export default function BoothLayout() {
     ctx: CanvasRenderingContext2D,
     filterId: string,
   ) => {
-    if (filterId === "vintage")
-      ctx.filter = "sepia(0.8) contrast(1.2) brightness(0.95)";
-    else if (filterId === "retro")
-      ctx.filter = "contrast(1.1) saturate(1.5) hue-rotate(15deg)";
-    else if (filterId === "warm")
-      ctx.filter = "sepia(0.25) saturate(1.25) hue-rotate(-10deg)";
-    else if (filterId === "cool")
-      ctx.filter =
-        "contrast(1.05) saturate(0.75) hue-rotate(15deg) brightness(1.05)";
-    else if (filterId === "cinema")
-      ctx.filter = "contrast(1.3) brightness(0.9) saturate(0.5)";
-    else if (filterId === "bw") ctx.filter = "grayscale(1) contrast(1.5)";
-    else if (filterId === "sepia") ctx.filter = "sepia(1) contrast(1)";
-    else ctx.filter = "none";
+    ctx.filter = getCanvasFilterString(filterId);
   };
 
   const drawThemeBackground = (
@@ -2120,15 +2233,13 @@ export default function BoothLayout() {
         window.location.origin,
       ).toString();
 
-      const { error } = await supabase
-        .from("email_logs")
-        .insert({
-          id: `eml-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          email: email,
-          photo_id: compiledPhotoRecord.id,
-          download_url: downloadUrl,
-          status: "pending",
-        });
+      const { error } = await supabase.from("email_logs").insert({
+        id: `eml-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        email: email,
+        photo_id: compiledPhotoRecord.id,
+        download_url: downloadUrl,
+        status: "pending",
+      });
 
       if (error) throw error;
 
@@ -2148,16 +2259,14 @@ export default function BoothLayout() {
     setPrintSuccess(false);
 
     try {
-      const { error } = await supabase
-        .from("print_job_logs")
-        .insert({
-          id: `prt-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          photo_id: compiledPhotoRecord.id,
-          size: activeEvent.layoutType === "strip" ? "2x6" : "4x6",
-          copies: printCopies,
-          status: "pending",
-          printer_name: "Default Kiosk Printer",
-        });
+      const { error } = await supabase.from("print_job_logs").insert({
+        id: `prt-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        photo_id: compiledPhotoRecord.id,
+        size: activeEvent.layoutType === "strip" ? "2x6" : "4x6",
+        copies: printCopies,
+        status: "pending",
+        printer_name: "Default Kiosk Printer",
+      });
 
       if (error) throw error;
 

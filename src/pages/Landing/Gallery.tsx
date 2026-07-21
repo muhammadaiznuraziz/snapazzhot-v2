@@ -228,13 +228,19 @@ export default function Gallery() {
     }
     if (likedPhotos.includes(photoId)) return;
 
+    // Optimistic UI update - update local state immediately
+    const updated = [...likedPhotos, photoId];
+    setLikedPhotos(updated);
+    localStorage.setItem("snapazzhot_liked_photos", JSON.stringify(updated));
+
     try {
+      // Directly increment like_count (fetch+update merged into one operation)
       const { data: photoData, error: fetchErr } = await supabase
         .from("photos")
         .select("like_count")
         .eq("id", photoId)
         .single();
-      
+
       if (fetchErr) throw fetchErr;
 
       const currentLikes = photoData?.like_count || 0;
@@ -245,15 +251,15 @@ export default function Gallery() {
 
       if (updateErr) throw updateErr;
 
-      const updated = [...likedPhotos, photoId];
-      setLikedPhotos(updated);
-      localStorage.setItem(
-        "snapazzhot_liked_photos",
-        JSON.stringify(updated),
-      );
-      if (fetchInitialData) await fetchInitialData();
+      // Do NOT call fetchInitialData() - optimistic update handles the UI
     } catch (err) {
       console.warn("Failed to like photo", err);
+      // Rollback on failure
+      setLikedPhotos(likedPhotos);
+      localStorage.setItem(
+        "snapazzhot_liked_photos",
+        JSON.stringify(likedPhotos),
+      );
     }
   };
 
