@@ -1,28 +1,23 @@
-# Dashboard API Fix - TODO
+# ~~TODO: Perbaiki Proses Generate GIF dan BTS~~ ✅ SELESAI
 
-## Step 1: Compute analytics locally from Supabase data
+## Camera.tsx - GIF & BTS Recording
 
-- [x] Remove `fetchDashboardData()` API calls
-- [x] Compute `analytics` (photosCount, gifsCount, videosCount, totalPrints, totalEmails, totalEvents, visitorCount) from `photos[]` and `events[]`
-- [x] Generate `chartData` grouped by day from photos
+- [x] 1. `triggerFlashAndSnap`: Ganti capture canvas dari 1280x720 ke resolusi asli kamera
+- [x] 2. `startBtsRecording`: Ganti recording canvas dari 1280x720 ke resolusi asli kamera
+- [x] 3. `startRecordingLoop`: Hapus mirror dari recording (mirror=false) agar tidak double flip di kompilasi BTS
+- [x] 4. `handleCompleteSession`: Ganti gifWidth/gifHeight dari 1280x720 ke resolusi asli kamera via `captureResolutionRef`
 
-## Step 2: Replace Printer/Camera/Settings with local defaults
+## BoothLayout.tsx - BTS Compilation
 
-- [x] Initialize `printer` with default mock data
-- [x] Initialize `camera` with default mock data
-- [x] Initialize `settings` with default mock data
-- [x] Make update handlers work locally (no API calls)
+- [x] 5. Tidak ada perubahan - `drawMediaOnCanvas` akan menerapkan mirror sekali di kompilasi (karena recording sudah tidak bake-in mirror)
 
-## Step 3: Generate Activity Logs locally
+## Hasil Akhir
 
-- [x] Generate `systemLogs` from photos and events timestamps
-
-## Step 4: Remove all `/api/*` fetch calls
-
-- [x] Remove `guardedFetch` function
-- [x] Remove all `console.warn` messages about non-JSON responses
-- [x] Clean up `initialDashboardLoadRef`
-
-## Step 5: Test
-
-- [x] Verify Dashboard loads without console warnings
+| Aspek                | Sebelum                 | Sesudah                                           |
+| -------------------- | ----------------------- | ------------------------------------------------- |
+| GIF width/height     | Hardcoded 1280x720      | Resolusi asli kamera (misal 1920x1080 / 1280x720) |
+| Capture canvas       | Hardcoded 1280x720      | Resolusi asli video source                        |
+| BTS recording canvas | Hardcoded 1280x720      | Resolusi asli video source                        |
+| BTS Mirror OFF       | Video di-mirror (salah) | Normal (tidak mirror) ✅                          |
+| BTS Mirror ON        | Double flip             | Mirror sekali ✅                                  |
+| Orientasi            | Tidak konsisten         | Konsisten di semua media ✅                       |

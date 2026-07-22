@@ -211,7 +211,7 @@ export default function BoothIndex() {
         }}
         className="text-center space-y-2 max-w-xl w-full shrink-0 relative z-10"
       >
-        <h2 className="text-2xl md:text-4xl font-black italic tracking-tight text-white uppercase leading-none">
+        <h2 className="text-2xl md:text-4xl font-black  tracking-tight text-white uppercase leading-none">
           Pilih Frame Foto Anda
         </h2>
         {activeEvent && (
@@ -270,7 +270,7 @@ export default function BoothIndex() {
                         damping: 25,
                       }}
                       style={{ aspectRatio: `${aspectW} / ${aspectH}` }}
-                      className={`relative h-[280px] sm:h-[340px] md:h-full md:max-h-[360px] rounded-xl overflow-hidden shadow-2xl bg-black border-2 transition-shadow duration-200 cursor-pointer ${
+                      className={`relative h-[280px] sm:h-[340px] md:h-full md:max-h-[360px]  shadow-2xl bg-black border-2 transition-shadow duration-200 cursor-pointer ${
                         isSelected
                           ? "shadow-[#a855f7]/30 ring-4 ring-[#a855f7]/20"
                           : "hover:border-white/40"
@@ -442,7 +442,7 @@ export default function BoothIndex() {
               boxShadow: "0 15px 30px rgba(188,255,0,0.25)",
             }}
             whileTap={{ scale: 0.99 }}
-            className="w-full max-w-md py-3.5 bg-[#bcff00] hover:bg-white text-black font-['Outfit'] font-black uppercase tracking-widest text-xs rounded-xl shadow-xl transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full max-w-md py-3.5 bg-[#bcff00] hover:bg-white text-black font-['Outfit'] font-black uppercase tracking-widest text-xs  shadow-xl transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
           >
             <Camera className="w-4 h-4 text-black" />
             Mulai Pemotretan

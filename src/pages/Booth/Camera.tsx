@@ -5,27 +5,15 @@ import { BoothContextType } from "../../layouts/BoothLayout";
 import { renderMedia } from "../../utils/render";
 import {
   Camera,
-  Sparkles,
   RotateCcw,
-  Check,
-  Maximize2,
-  Minimize2,
   Grid,
   Volume2,
   VolumeX,
-  Sliders,
-  Video as VideoIcon,
   RefreshCw,
-  Info,
-  Tv,
-  Monitor,
-  Layers,
-  Image as ImageIcon,
-  Clock,
+  ArrowRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Utility to lazily load gifshot library from CDN for reliable pure client-side compiling
 export function loadGifshot(): Promise<any> {
   return new Promise((resolve, reject) => {
     if ((window as any).gifshot) {
@@ -45,30 +33,6 @@ export function loadGifshot(): Promise<any> {
   });
 }
 
-// Helper to crop image data URL to a clean 1:1 square to prevent squishing
-export function cropImageToSquare(base64: string): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const size = Math.min(img.width, img.height);
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        const sx = (img.width - size) / 2;
-        const sy = (img.height - size) / 2;
-        ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
-        resolve(canvas.toDataURL("image/jpeg", 0.9));
-      } else {
-        resolve(base64);
-      }
-    };
-    img.onerror = () => resolve(base64);
-    img.src = base64;
-  });
-}
-
 const filterStyles: Record<string, string> = {
   none: "none",
   grayscale: "grayscale(100%)",
@@ -83,7 +47,7 @@ interface HistoryItem {
   id: string;
   frameNumber: number;
   url: string;
-  status: "success" | "retake";
+  status: "success" | "retake" | "pending";
   timestamp: string;
 }
 
@@ -97,11 +61,9 @@ export default function BoothCamera() {
     countdownSeconds,
     flash,
     setFlash,
-    capturedFrames,
     setCapturedFrames,
     setAllSnappedPhotos,
     videoRef,
-    offscreenCanvasRef,
     selectedCameraId,
     setSelectedCameraId,
     useSimulator,
@@ -110,7 +72,6 @@ export default function BoothCamera() {
     stopCamera,
     renderSimulatorPortrait,
     setCurrentFrameIndex,
-    cameraList,
     setCameraList,
     setSessionBtsCaptureTimes,
     sessionVideoUrls,
@@ -118,7 +79,6 @@ export default function BoothCamera() {
     mirror,
     setMirror,
     zoom,
-    setZoom,
     selectedFrameId,
   } = context;
 
@@ -134,7 +94,7 @@ export default function BoothCamera() {
     | "countdown_retake"
   >("ready");
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [retakeIndex, setRetakeIndex] = useState<number | null>(null);
+  const [, setRetakeIndex] = useState<number | null>(null);
   const [tempCaptured, setTempCaptured] = useState<string[]>([]);
   const [currentCountdownVal, setCurrentCountdownVal] = useState(0);
   const [latestSnappedPhoto, setLatestSnappedPhoto] = useState<string | null>(
@@ -142,17 +102,14 @@ export default function BoothCamera() {
   );
   const [processingMedia, setProcessingMedia] = useState(false);
 
-  // New Audit State for Tracking Historic Retakes & Active Snapshots
-  const [photoHistory, setPhotoHistory] = useState<HistoryItem[]>([]);
+  const [, setPhotoHistory] = useState<HistoryItem[]>([]);
 
-  // Reset audit pipeline when session rolls back to clean state
   useEffect(() => {
     if (tempCaptured.length === 0) {
       setPhotoHistory([]);
     }
   }, [tempCaptured]);
 
-  // Find template matching selection
   const template =
     templates?.find(
       (t: any) =>
@@ -168,7 +125,6 @@ export default function BoothCamera() {
   const canvasHeight = template?.canvasHeight || 800;
   const elements = template ? [...(template.elements || [])] : [];
 
-  // Sort and filter photo elements
   const rawPhotoElements = elements.filter(
     (el: any) => el.type === "photo" && !el.hidden,
   );
@@ -196,7 +152,6 @@ export default function BoothCamera() {
 
   const photoElementsSorted = rows.flat();
 
-  // Dynamic Scale hook for Preview Photo
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
 
@@ -229,23 +184,21 @@ export default function BoothCamera() {
     };
   }, [sessionState, canvasWidth, canvasHeight]);
 
-  // Camera Settings
-  const [brightness, setBrightness] = useState(100);
-  const [exposure, setExposure] = useState(100);
   const [showGrid, setShowGrid] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [activeFilter, setActiveFilter] = useState("none");
+  const [activeFilter] = useState("none");
 
-  // MediaRecorder Refs for behind the scenes video
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
   const recordingStartTimeRef = useRef<number>(0);
   const recordingCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const recordingLoopActiveRef = useRef<boolean>(false);
+  const captureResolutionRef = useRef<{ width: number; height: number }>({
+    width: 1280,
+    height: 720,
+  });
 
-  // Load cameras list on mount
   useEffect(() => {
     let isMounted = true;
     async function initCameraDiscovery() {
@@ -433,13 +386,17 @@ export default function BoothCamera() {
     const loop = () => {
       if (!recordingLoopActiveRef.current) return;
       if (video && video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
-        ctx.save();
-        if (mirror) {
-          ctx.translate(canvas.width, 0);
-          ctx.scale(-1, 1);
-        }
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
+        renderMedia({
+          ctx,
+          source: video,
+          x: 0,
+          y: 0,
+          width: canvas.width,
+          height: canvas.height,
+          objectFit: "cover",
+          mirror: false,
+          zoom,
+        });
       }
       requestAnimationFrame(loop);
     };
@@ -478,10 +435,16 @@ export default function BoothCamera() {
 
     let streamToRecord: MediaStream | null = null;
 
+    // Get camera native resolution for recording canvas
+    const videoEl = videoRef.current;
+    const camWidth = videoEl?.videoWidth || 1280;
+    const camHeight = videoEl?.videoHeight || 720;
+    captureResolutionRef.current = { width: camWidth, height: camHeight };
+
     if (rawStream) {
       const recCanvas = document.createElement("canvas");
-      recCanvas.width = 1280;
-      recCanvas.height = 720;
+      recCanvas.width = camWidth;
+      recCanvas.height = camHeight;
       recordingCanvasRef.current = recCanvas;
 
       if (videoRef.current) {
@@ -501,8 +464,8 @@ export default function BoothCamera() {
       }
     } else if (useSimulator) {
       const recCanvas = document.createElement("canvas");
-      recCanvas.width = 1280;
-      recCanvas.height = 720;
+      recCanvas.width = camWidth;
+      recCanvas.height = camHeight;
       recordingCanvasRef.current = recCanvas;
 
       recordingLoopActiveRef.current = true;
@@ -644,9 +607,13 @@ export default function BoothCamera() {
     }
 
     let snappedBase64 = "";
+    const videoEl = videoRef.current;
+    const capWidth = videoEl?.videoWidth || 1280;
+    const capHeight = videoEl?.videoHeight || 720;
+    captureResolutionRef.current = { width: capWidth, height: capHeight };
     const canvas = document.createElement("canvas");
-    canvas.width = 1280;
-    canvas.height = 720;
+    canvas.width = capWidth;
+    canvas.height = capHeight;
     const ctx = canvas.getContext("2d");
 
     if (ctx) {
@@ -716,7 +683,6 @@ export default function BoothCamera() {
       updatedQueue[indexToRetake] = capturedPhoto;
       setTempCaptured(updatedQueue);
 
-      // Mutate audit records history cleanly
       setPhotoHistory((prev) => {
         const updatedHistory = prev.map((item) => {
           if (
@@ -747,12 +713,11 @@ export default function BoothCamera() {
         setLatestSnappedPhoto(null);
         setRetakeIndex(null);
         setSessionState("review_all");
-      }, 1500);
+      }, 1200);
     } else {
       const updatedQueue = [...tempCaptured, capturedPhoto];
       setTempCaptured(updatedQueue);
 
-      // Push primary capture to historic record array
       setPhotoHistory((prev) => [
         ...prev,
         {
@@ -776,7 +741,7 @@ export default function BoothCamera() {
           setCurrentPhotoIndex(updatedQueue.length);
           setSessionState("ready");
         }
-      }, 1500);
+      }, 1200);
     }
   };
 
@@ -794,13 +759,16 @@ export default function BoothCamera() {
       } catch (_) {}
     }
 
+    // Use camera native resolution for GIF output
+    const { width: gifW, height: gifH } = captureResolutionRef.current;
+
     try {
       const gifshotLib = await loadGifshot();
       const compileOptions = {
         images: finalPhotos,
         interval: 0.45,
-        gifWidth: 640,
-        gifHeight: 360,
+        gifWidth: gifW,
+        gifHeight: gifH,
         numWorkers: 2,
       };
 
@@ -825,76 +793,22 @@ export default function BoothCamera() {
     navigate("/booth/editor");
   };
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
-  };
-
   if (processingMedia) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#004ce5] text-white flex flex-col items-center justify-center space-y-6 p-6 font-['Outfit']">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-0" />
-        <div className="w-12 h-12 border-2 border-[#bcff00] border-t-transparent rounded-full animate-spin relative z-10" />
-        <div className="text-center space-y-3 max-w-md relative z-10">
-          <h2 className="text-xl font-black uppercase tracking-wider italic text-[#bcff00]">
-            Compiling Session Media
+      <div className="fixed inset-0 z-50 bg-[#004ce5] text-white flex flex-col items-center justify-center space-y-6 p-6 font-['Outfit',sans-serif]">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-0" />
+        <div className="w-16 h-16 border-4 border-[#bcff00] border-t-transparent rounded-full animate-spin relative z-10 shadow-[0_0_20px_rgba(188,255,0,0.3)]" />
+        <div className="text-center space-y-2 max-w-md relative z-10">
+          <h2 className="text-2xl font-black uppercase tracking-wider text-[#bcff00] italic">
+            Memproses Foto...
           </h2>
-          <p className="text-[10px] text-white/70 leading-relaxed uppercase tracking-wide">
-            Creating high-quality loop GIF animations and combining
-            behind-the-scenes video footage...
+          <p className="text-xs text-white/70 uppercase tracking-widest font-mono">
+            Mengompilasi animasi GIF & BTS Video Footage...
           </p>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-black/40 border border-white/10 text-[#bcff00] rounded-full text-[9px] uppercase tracking-widest font-bold relative z-10">
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-          Live Compiling Engine Active
         </div>
       </div>
     );
   }
-
-  // Pre-generate dynamic list of target slots with pending statuses
-  const renderHistoryList = () => {
-    const slots = Array.from({ length: photosToTake }, (_, i) => i + 1);
-
-    // items from history
-    const directHistory = [...photoHistory];
-
-    // tracking slots that have been fulfilled by successful items
-    const fulfilledSlots = new Set(
-      directHistory
-        .filter((h) => h.status === "success")
-        .map((h) => h.frameNumber),
-    );
-
-    // inject pending nodes for placeholders
-    slots.forEach((slotNum) => {
-      if (!fulfilledSlots.has(slotNum)) {
-        directHistory.push({
-          id: `pending-${slotNum}`,
-          frameNumber: slotNum,
-          url: "",
-          status: "pending" as any,
-          timestamp: "",
-        });
-      }
-    });
-
-    // Sort logically: Historic objects first grouped by frame, matching chronological snapshot sequence
-    return directHistory.sort((a, b) => {
-      if (a.frameNumber !== b.frameNumber) {
-        return a.frameNumber - b.frameNumber;
-      }
-      // If same slot number, let the 'retake' status come before the 'success' item
-      return a.status === "retake" ? -1 : 1;
-    });
-  };
-
-  const activeAuditList = renderHistoryList();
 
   return (
     <motion.div
@@ -903,8 +817,8 @@ export default function BoothCamera() {
       exit={{ opacity: 0 }}
       className="fixed inset-0 w-screen h-[100dvh] z-40 bg-[#004ce5] text-white flex flex-col overflow-hidden font-sans select-none"
     >
-      {/* Background Matrix Grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-0" />
+      {/* MATRIX GRID BACKGROUND */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-0" />
 
       {/* FLASH SCREEN TRIGGER */}
       <AnimatePresence>
@@ -919,72 +833,42 @@ export default function BoothCamera() {
         )}
       </AnimatePresence>
 
-      {/* CORE SPLIT SCREEN */}
-      <div
-        className={`flex-1 h-full min-h-0 w-full flex flex-col lg:grid ${
-          sessionState === "review_all"
-            ? "lg:grid-cols-[325px_1fr]"
-            : "lg:grid-cols-[325px_1fr_325px]"
-        } p-4 sm:p-6 md:p-8 gap-6 overflow-hidden relative z-10`}
-      >
-        {/* LEFT SIDEBAR - CLEAN THUMBNAIL FEED */}
-        <div className="h-full min-h-0 w-full p-4 bg-neutral-900 border border-white/15 rounded-[20px] shadow-xl flex flex-col gap-4 text-left overflow-hidden">
-          {/* VERTICAL SCROLL ENGINE FEED */}
-          <div className="flex-1 overflow-y-auto pr-1 space-y-3 custom-scrollbar">
-            {photoHistory.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center p-6 text-center">
-                <p className="font-['Outfit'] text-[11px] uppercase font-bold text-white/40 tracking-wide">
-                  Belum ada foto yang diambil.
-                </p>
-              </div>
-            ) : (
-              activeAuditList
-                .filter((item) => item.status !== "pending") // Hanya tampilkan foto yang sudah terisi snapshot aktif/retake
-                .map((item) => (
-                  <div
-                    key={item.id}
-                    className="w-full aspect-[16/9] bg-black rounded-xl overflow-hidden border border-white/10 relative group transition-all duration-200 hover:border-white/30"
-                  >
-                    <img
-                      src={item.url}
-                      alt="Captured snapshot"
-                      className="w-full h-full object-cover"
-                    />
-
-                    {/* Minimal Retake Indicator Badge at Top Right */}
-                    {item.status === "retake" && (
-                      <div className="absolute top-2 right-2 px-2 py-0.5 bg-red-600/90 backdrop-blur-sm text-white text-[8px] font-['Outfit'] font-black uppercase tracking-wider rounded-md shadow-md flex items-center gap-1">
-                        <span>🔄</span>
-                        <span>Retake</span>
-                      </div>
-                    )}
-                  </div>
-                ))
-            )}
+      {/* MAIN CONTAINER */}
+      <div className="relative z-10 flex-1 h-full w-full flex flex-col p-4 md:p-6 max-w-7xl mx-auto overflow-hidden">
+        {/* HEADER BAR */}
+        <header className="flex items-center justify-between py-2 px-1 mb-2 shrink-0 border-b border-white/15">
+          <div className="flex items-center gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-[#bcff00] animate-pulse" />
+            <h1 className="text-sm md:text-base font-black tracking-widest uppercase text-white font-mono">
+              SNAPAZZHOT
+            </h1>
           </div>
-        </div>
+          <div className="px-3.5 py-1 bg-black/40 border border-white/15 rounded-full text-[10px] font-mono tracking-widest uppercase text-[#bcff00]">
+            {sessionState === "review_all"
+              ? "SESI SELESAI"
+              : `FRAME ${currentPhotoIndex + (sessionState === "preview_single" ? 1 : 0)} DARI ${photosToTake}`}
+          </div>
+        </header>
 
-        {/* CENTER STAGE - AUTO RESPONSIVE MOBILE ENGINE */}
-        <div className="flex-1 h-fit lg:h-full p-4 sm:p-5 bg-neutral-900 border border-white/15 rounded-[20px] shadow-xl flex flex-col items-center justify-center gap-4 overflow-hidden min-h-0 relative shrink-0">
+        {/* WORKSPACE AREA */}
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center relative">
           {sessionState === "review_all" ? (
-            <div className="w-full flex flex-col items-center gap-4 py-2 h-full min-h-0">
+            /* REVIEW ALL LAYOUT */
+            <div className="w-full h-full flex flex-col items-center justify-between gap-4 py-2">
               <div className="text-center space-y-1 shrink-0">
-                <span className="px-3 py-1 bg-black/40 border border-white/10 text-[9px] text-[#bcff00] font-bold font-['Outfit'] tracking-widest uppercase inline-block rounded-full">
-                  Layar Review Sesi
-                </span>
-                <h2 className="text-xl sm:text-2xl font-black italic uppercase tracking-tight text-white leading-none">
-                  Tinjau Hasil Foto Anda
+                <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-white ">
+                  Tinjau Hasil Foto Sesi
                 </h2>
-                <p className="text-[9px] sm:text-[10px] text-white/50 max-w-md mx-auto leading-relaxed uppercase font-['Outfit']">
-                  Silakan tinjau tata letak frame di bawah. Anda dapat mengambil
-                  ulang (retake) foto satuan dengan tombol di bawah frame.
+                <p className="text-xs text-white/70 max-w-md mx-auto">
+                  Silakan periksa susunan foto. Tekan tombol retake jika ingin
+                  mengambil ulang slot tertentu.
                 </p>
               </div>
 
-              {/* DYNAMIC FRAME CANVAS PREVIEW CONTAINER */}
+              {/* FRAME CANVAS PREVIEW */}
               <div
                 ref={previewContainerRef}
-                className="w-full flex-1 min-h-[250px] lg:min-h-0 flex items-center justify-center relative overflow-hidden bg-black/40 border border-white/5 rounded-xl p-4 select-none"
+                className="w-full flex-1 min-h-[280px] flex items-center justify-center relative "
               >
                 <div
                   style={{
@@ -1004,9 +888,8 @@ export default function BoothCamera() {
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                   }}
-                  className="shadow-2xl border border-white/10 relative overflow-hidden"
+                  className="shadow-2xl border border-white/20 relative overflow-hidden rounded-md"
                 >
-                  {/* Elements Loop */}
                   {elements.map((el: any) => {
                     const style: React.CSSProperties = {
                       position: "absolute",
@@ -1034,21 +917,25 @@ export default function BoothCamera() {
                             ...style,
                             borderRadius: `${el.borderRadius || 0}px`,
                           }}
-                          className="overflow-hidden bg-neutral-950 border border-white/5 relative flex items-center justify-center"
+                          className="overflow-hidden bg-neutral-900 border border-white/10 relative flex items-center justify-center"
                         >
                           {imageUrl ? (
                             <img
                               src={imageUrl}
                               alt={`Captured Frame ${photoIdx + 1}`}
-                              className={`w-full h-full ${el.objectFit === "contain" ? "object-contain" : "object-cover"}`}
+                              className={`w-full h-full ${
+                                el.objectFit === "contain"
+                                  ? "object-contain"
+                                  : "object-cover"
+                              }`}
                             />
                           ) : (
                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 text-white gap-2">
                               <RotateCcw className="w-5 h-5 animate-spin text-[#bcff00]" />
                             </div>
                           )}
-                          <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-black text-[#bcff00] text-[7px] font-['Outfit'] tracking-widest uppercase rounded border border-white/10">
-                            Frame #{photoIdx + 1}
+                          <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/80 text-[#bcff00] text-[9px] font-mono tracking-wider uppercase rounded border border-white/10">
+                            #{photoIdx + 1}
                           </div>
                         </div>
                       );
@@ -1082,7 +969,7 @@ export default function BoothCamera() {
                             fontWeight: "bold",
                             whiteSpace: "nowrap",
                           }}
-                          className="flex items-center justify-start overflow-hidden font-sans select-none"
+                          className="flex items-center justify-start overflow-hidden select-none"
                         >
                           {text}
                         </div>
@@ -1104,39 +991,8 @@ export default function BoothCamera() {
                           />
                         );
                       }
-                      return (
-                        <div
-                          key={el.id}
-                          style={{
-                            ...style,
-                            border: "1px solid rgba(0,0,0,0.08)",
-                            backgroundColor: "rgba(0,0,0,0.02)",
-                          }}
-                          className="flex items-center justify-center text-[10px] font-['Outfit'] font-bold uppercase tracking-wider text-center"
-                        >
-                          {el.name}
-                        </div>
-                      );
                     }
 
-                    if (el.type === "qr") {
-                      return (
-                        <div
-                          key={el.id}
-                          style={{
-                            ...style,
-                            backgroundColor: "#ffffff",
-                            padding: "4px",
-                            border: "1px solid rgba(0,0,0,0.08)",
-                          }}
-                          className="flex flex-col items-center justify-center overflow-hidden"
-                        >
-                          <div className="w-full h-full bg-zinc-100 flex items-center justify-center text-[7px] font-['Outfit'] text-zinc-400">
-                            [QR CODE]
-                          </div>
-                        </div>
-                      );
-                    }
                     return null;
                   })}
                   {template?.framePng && (
@@ -1149,12 +1005,9 @@ export default function BoothCamera() {
                 </div>
               </div>
 
-              {/* RETAKE CONTROLS */}
-              <div className="flex flex-col items-center gap-2 w-full shrink-0">
-                <span className="font-['Outfit'] text-[9px] uppercase tracking-widest text-white/40 font-bold">
-                  Ambil Ulang Satuan (Retake Frame)
-                </span>
-                <div className="flex flex-wrap justify-center gap-1.5 max-w-2xl w-full">
+              {/* ACTIONS & RETAKES BAR */}
+              <div className="w-full max-w-xl flex flex-col items-center gap-3 shrink-0">
+                <div className="flex flex-wrap justify-center gap-2 w-full">
                   {photoElementsSorted.map((el: any, idx: number) => (
                     <button
                       key={el.id}
@@ -1167,326 +1020,214 @@ export default function BoothCamera() {
                         });
                         startCountDownSequence(true, idx);
                       }}
-                      className="px-3 py-1.5 bg-black/40 hover:bg-[#bcff00] border border-white/10 hover:border-transparent text-[9px] font-['Outfit'] font-black uppercase tracking-widest text-white hover:text-black rounded-xl transition duration-150 flex items-center gap-1.5 cursor-pointer shadow-sm"
+                      className="px-3.5 py-1.5 bg-black/40 hover:bg-[#bcff00] hover:text-black border border-white/20 text-xs font-mono font-bold uppercase text-white rounded-lg transition flex items-center gap-2 cursor-pointer shadow-sm"
                     >
-                      <RotateCcw className="w-3 h-3" />#{idx + 1}
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Retake #{idx + 1}
                     </button>
                   ))}
                 </div>
-              </div>
 
-              {/* BOTTOM ACTIONS */}
-              <div className="flex flex-row items-center gap-3 mt-1 w-full justify-center border-t border-dashed border-white/10 pt-3 shrink-0">
-                <button
-                  onClick={() => {
-                    if (
-                      mediaRecorderRef.current &&
-                      mediaRecorderRef.current.state !== "inactive"
-                    ) {
-                      try {
-                        mediaRecorderRef.current.stop();
-                      } catch (_) {}
-                    }
-                    mediaRecorderRef.current = null;
-                    recordedChunksRef.current = [];
-                    setSessionBtsCaptureTimes([]);
-                    setSessionVideoUrls([]);
-                    setTempCaptured([]);
-                    setCurrentPhotoIndex(0);
-                    setSessionState("ready");
-                  }}
-                  className="flex-1 py-2.5 bg-black/40 hover:bg-red-600 hover:text-white border border-white/10 hover:border-transparent text-[9px] font-['Outfit'] font-black uppercase tracking-wider text-white/80 rounded-xl transition duration-150 cursor-pointer text-center"
-                >
-                  Reset
-                </button>
-                <button
-                  onClick={() => handleCompleteSession(tempCaptured)}
-                  className="flex-1 py-2.5 bg-[#bcff00] text-black hover:bg-white text-[9px] font-['Outfit'] font-black uppercase tracking-wider rounded-xl transition duration-150 cursor-pointer shadow-xl flex items-center justify-center gap-1.5"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  Lanjut
-                </button>
+                <div className="flex items-center gap-3 w-full pt-1">
+                  <button
+                    onClick={() => {
+                      if (
+                        mediaRecorderRef.current &&
+                        mediaRecorderRef.current.state !== "inactive"
+                      ) {
+                        try {
+                          mediaRecorderRef.current.stop();
+                        } catch (_) {}
+                      }
+                      mediaRecorderRef.current = null;
+                      recordedChunksRef.current = [];
+                      setSessionBtsCaptureTimes([]);
+                      setSessionVideoUrls([]);
+                      setTempCaptured([]);
+                      setCurrentPhotoIndex(0);
+                      setSessionState("ready");
+                    }}
+                    className="flex-1 py-3 bg-black/40 hover:bg-red-600 border border-white/15 hover:border-transparent text-xs font-mono font-bold uppercase tracking-wider text-white/80 hover:text-white rounded-xl transition cursor-pointer text-center"
+                  >
+                    Reset
+                  </button>
+                  <button
+                    onClick={() => handleCompleteSession(tempCaptured)}
+                    className="flex-1 py-3 bg-[#bcff00] hover:bg-white text-black text-xs font-mono font-black uppercase tracking-wider rounded-xl transition cursor-pointer shadow-xl flex items-center justify-center gap-2"
+                  >
+                    <span>Lanjut Ke Editor</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
-            <>
-              <div className="text-center w-full space-y-2 flex flex-col items-center shrink-0">
-                <span className="font-['Outfit'] text-[9px] uppercase tracking-widest text-[#bcff00] font-black bg-black/40 border border-white/10 px-2.5 py-0.5 rounded-full">
-                  Progress:{" "}
-                  {currentPhotoIndex +
-                    (sessionState === "preview_single" ? 1 : 0)}{" "}
-                  / {photosToTake} Frame
-                </span>
-
-                {/* VIEWPORT WRAPPER - DYNAMIC MOBILE HEIGHT RATIO */}
-                <div className="relative w-full aspect-[4/3] xs:aspect-[16/9] lg:h-full lg:w-auto lg:aspect-[16/9] bg-black border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center flex-1 min-h-0">
-                  <div
-                    className="w-full h-full relative"
-                    style={{
-                      transform: `scale(${zoom})`,
-                      transformOrigin: "center center",
-                      filter: `brightness(${brightness}%) contrast(${exposure}%) ${
-                        activeFilter !== "none"
-                          ? filterStyles[activeFilter]
-                          : ""
-                      }`,
-                      transition:
-                        "transform 0.2s ease-out, filter 0.1s ease-out",
-                    }}
-                  >
-                    {useSimulator ? (
-                      <div className="absolute inset-0 bg-[#0a0a0c] flex flex-col items-center justify-center space-y-2 text-white p-4">
-                        <Camera className="w-8 h-8 text-[#bcff00] animate-pulse" />
-                        <div className="space-y-0.5 text-center">
-                          <p className="text-[10px] font-black font-['Outfit'] uppercase tracking-widest text-[#bcff00]">
-                            DSLR Viewfinder Active
-                          </p>
-                          <p className="text-[8px] text-zinc-400 font-['Outfit'] bg-black/60 px-2 py-0.5 rounded border border-white/5 inline-block font-bold">
-                            Capture Index #{currentPhotoIndex + 1}
-                          </p>
-                        </div>
+            /* CAMERA LIVE VIEWPORT LAYOUT */
+            <div className="w-full h-full flex flex-col items-center justify-between gap-4">
+              {/* CAMERA VIEWPORT FRAME */}
+              <div className="relative w-full flex-1 max-h-[70vh] aspect-[16/9] bg-neutral-900 border-2 border-white/20 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center">
+                <div
+                  className="w-full h-full relative"
+                  style={{
+                    transform: `scale(${zoom})`,
+                    transformOrigin: "center center",
+                    filter: `brightness(100%) contrast(100%) ${
+                      activeFilter !== "none" ? filterStyles[activeFilter] : ""
+                    }`,
+                    transition: "transform 0.2s ease-out, filter 0.1s ease-out",
+                  }}
+                >
+                  {useSimulator ? (
+                    <div className="absolute inset-0 bg-neutral-900 flex flex-col items-center justify-center space-y-3 text-white p-4">
+                      <Camera className="w-10 h-10 text-[#bcff00] animate-pulse" />
+                      <div className="space-y-1 text-center">
+                        <p className="text-xs font-mono uppercase tracking-widest text-[#bcff00]">
+                          Simulator Kamera Aktif
+                        </p>
+                        <p className="text-[10px] text-neutral-400 font-mono">
+                          Frame Index #{currentPhotoIndex + 1}
+                        </p>
                       </div>
-                    ) : (
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className={`w-full h-full object-cover ${mirror ? "scale-x-[-1]" : ""}`}
-                      />
-                    )}
-                  </div>
-
-                  {/* OVERLAY GRID */}
-                  {showGrid && (
-                    <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none z-20">
-                      <div className="border-b border-r border-white/15" />
-                      <div className="border-b border-r border-white/15" />
-                      <div className="border-b border-white/15" />
-                      <div className="border-b border-r border-white/15" />
-                      <div className="border-b border-r border-white/15" />
-                      <div className="border-b border-white/15" />
-                      <div className="border-r border-white/15" />
-                      <div className="border-r border-white/15" />
-                      <div />
                     </div>
+                  ) : (
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className={`w-full h-full object-cover ${
+                        mirror ? "scale-x-[-1]" : ""
+                      }`}
+                    />
                   )}
-
-                  {/* COUNTDOWN OVERLAY */}
-                  <AnimatePresence>
-                    {(sessionState === "countdown" ||
-                      sessionState === "countdown_retake") &&
-                      currentCountdownVal > 0 && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-30 pointer-events-none"
-                        >
-                          <motion.span
-                            key={currentCountdownVal}
-                            initial={{ scale: 0.5, opacity: 0 }}
-                            animate={{ scale: 1.1, opacity: 1 }}
-                            exit={{ scale: 1.6, opacity: 0 }}
-                            transition={{ duration: 0.9, ease: "easeOut" }}
-                            className="text-7xl font-black text-[#bcff00] font-['Outfit'] italic"
-                          >
-                            {currentCountdownVal}
-                          </motion.span>
-                        </motion.div>
-                      )}
-                  </AnimatePresence>
-
-                  {/* SINGLE SNAPPED REVIEW OVERLAY */}
-                  <AnimatePresence>
-                    {sessionState === "preview_single" &&
-                      latestSnappedPhoto && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute inset-0 bg-neutral-900 border border-white/10 flex flex-col justify-between p-4 z-40 rounded-2xl"
-                        >
-                          <div className="text-center">
-                            <span className="px-2.5 py-1 bg-black/40 border border-white/10 text-[8px] text-[#bcff00] font-black font-['Outfit'] tracking-widest uppercase inline-block rounded-full">
-                              {retakeIndex !== null
-                                ? "Retake Berhasil"
-                                : "Frame Disimpan"}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-h-0 flex items-center justify-center my-2">
-                            <div className="h-full aspect-[16/9] bg-black border border-white/10 rounded-xl overflow-hidden relative shadow-2xl">
-                              <img
-                                src={latestSnappedPhoto}
-                                alt="Review Shot"
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-center gap-1.5 pb-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            <span className="text-[8px] font-['Outfit'] uppercase tracking-widest text-white/60 font-bold">
-                              Processing...
-                            </span>
-                          </div>
-                        </motion.div>
-                      )}
-                  </AnimatePresence>
                 </div>
 
-                {/* PROGRESS BAR */}
-                <div className="w-full h-1 bg-black/40 rounded-full border border-white/5 relative mt-1 overflow-hidden shrink-0">
-                  <div
-                    className="absolute h-full left-0 top-0 bg-[#bcff00] transition-all duration-300"
-                    style={{
-                      width: `${(tempCaptured.length / photosToTake) * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* SIGNAL/TRIGGER BUTTON */}
-              <div className="flex flex-col items-center gap-0.5 shrink-0">
-                {(sessionState === "ready" ||
-                  sessionState === "countdown_retake") && (
-                  <button
-                    onClick={handleStartCapture}
-                    className="w-14 h-14 bg-[#bcff00] border-4 border-neutral-900 rounded-full cursor-pointer shadow-[0_0_0_2px_#bcff00] flex items-center justify-center transition hover:scale-105 active:scale-95 group"
-                  >
-                    <Camera className="w-5 h-5 text-black" />
-                  </button>
+                {/* OVERLAY GRID */}
+                {showGrid && (
+                  <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none z-20">
+                    <div className="border-b border-r border-white/20" />
+                    <div className="border-b border-r border-white/20" />
+                    <div className="border-b border-white/20" />
+                    <div className="border-b border-r border-white/20" />
+                    <div className="border-b border-r border-white/20" />
+                    <div className="border-b border-white/20" />
+                    <div className="border-r border-white/20" />
+                    <div className="border-r border-white/20" />
+                    <div />
+                  </div>
                 )}
-                <span className="font-['Outfit'] text-[8px] font-black tracking-widest text-[#bcff00] uppercase mt-1">
-                  {sessionState === "ready"
-                    ? "Capture Frame"
-                    : "Session Active"}
-                </span>
-              </div>
-            </>
-          )}
-        </div>
 
-        {/* RIGHT SIDEBAR - CAMERA ADJUSTMENTS */}
-        {sessionState !== "review_all" && (
-          <div className="h-fit w-full p-5 bg-neutral-900 border border-white/15 rounded-[20px] shadow-xl flex flex-col gap-6 text-left">
-            {" "}
-            {/* SLIDERS */}
-            <div className="flex flex-col gap-5">
-              <div className="pb-2 border-b border-white/10">
-                <span className="font-['Outfit'] text-[10px] font-black uppercase tracking-widest text-[#bcff00] flex items-center gap-2">
-                  <Sliders className="w-4 h-4" />
-                  Visual Engine
-                </span>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <span className="font-['Outfit'] text-[9px] uppercase tracking-widest text-white/40 font-bold">
-                  Digital Zoom [{zoom.toFixed(1)}x]
-                </span>
-                <input
-                  type="range"
-                  min="1.0"
-                  max="2.5"
-                  step="0.1"
-                  value={zoom}
-                  onChange={(e) => setZoom(parseFloat(e.target.value))}
-                  className="w-full h-1 bg-black/40 rounded-lg appearance-none cursor-pointer accent-[#bcff00]"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <span className="font-['Outfit'] text-[9px] uppercase tracking-widest text-white/40 font-bold">
-                  Brightness [{brightness}%]
-                </span>
-                <input
-                  type="range"
-                  min="50"
-                  max="150"
-                  value={brightness}
-                  onChange={(e) => setBrightness(parseInt(e.target.value))}
-                  className="w-full h-1 bg-black/40 rounded-lg appearance-none cursor-pointer accent-[#bcff00]"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <span className="font-['Outfit'] text-[9px] uppercase tracking-widest text-white/40 font-bold">
-                  Contrast [{exposure}%]
-                </span>
-                <input
-                  type="range"
-                  min="50"
-                  max="150"
-                  value={exposure}
-                  onChange={(e) => setExposure(parseInt(e.target.value))}
-                  className="w-full h-1 bg-black/40 rounded-lg appearance-none cursor-pointer accent-[#bcff00]"
-                />
-              </div>
-            </div>
-            {/* EXTRA UTILITIES */}
-            <div className="flex flex-col gap-3 pt-4 border-t border-dashed border-white/10">
-              <span className="font-['Outfit'] text-[9px] uppercase tracking-widest text-white/40 font-bold">
-                Toggles
-              </span>
-
-              <div className="grid grid-cols-1 gap-2.5">
-                <button
-                  onClick={() => setShowGrid(!showGrid)}
-                  className={`py-2.5 px-3.5 border font-['Outfit'] text-[10px] font-black uppercase transition flex items-center justify-between cursor-pointer rounded-xl ${
-                    showGrid
-                      ? "bg-[#bcff00] border-[#bcff00] text-black"
-                      : "bg-black/30 border-white/5 text-white/60 hover:text-white hover:border-white/20"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
+                {/* FLOATING CAMERA TOGGLES */}
+                <div className="absolute top-4 right-4 z-30 flex items-center gap-2 bg-black/50 backdrop-blur-md p-1.5 rounded-xl border border-white/15">
+                  <button
+                    onClick={() => setShowGrid(!showGrid)}
+                    className={`p-2 rounded-lg transition cursor-pointer ${
+                      showGrid
+                        ? "bg-[#bcff00] text-black"
+                        : "text-white/80 hover:text-white hover:bg-white/10"
+                    }`}
+                    title="Grid"
+                  >
                     <Grid className="w-4 h-4" />
-                    <span>Grid Overlay</span>
-                  </div>
-                  <span className="text-[9px] opacity-75">
-                    {showGrid ? "ON" : "OFF"}
-                  </span>
-                </button>
+                  </button>
 
-                <button
-                  onClick={() => setMirror(!mirror)}
-                  className={`py-2.5 px-3.5 border font-['Outfit'] text-[10px] font-black uppercase transition flex items-center justify-between cursor-pointer rounded-xl ${
-                    mirror
-                      ? "bg-[#bcff00] border-[#bcff00] text-black"
-                      : "bg-black/30 border-white/5 text-white/60 hover:text-white hover:border-white/20"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setMirror(!mirror)}
+                    className={`p-2 rounded-lg transition cursor-pointer ${
+                      mirror
+                        ? "bg-[#bcff00] text-black"
+                        : "text-white/80 hover:text-white hover:bg-white/10"
+                    }`}
+                    title="Mirror Image"
+                  >
                     <RefreshCw className="w-4 h-4" />
-                    <span>Mirror Mode</span>
-                  </div>
-                  <span className="text-[9px] opacity-75">
-                    {mirror ? "ON" : "OFF"}
-                  </span>
-                </button>
+                  </button>
 
-                <button
-                  onClick={() => setIsMuted(!isMuted)}
-                  className={`py-2.5 px-3.5 border font-['Outfit'] text-[10px] font-black uppercase transition flex items-center justify-between cursor-pointer rounded-xl ${
-                    isMuted
-                      ? "bg-red-950/40 border-red-500/30 text-red-400"
-                      : "bg-black/30 border-white/5 text-white/60 hover:text-white hover:border-white/20"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsMuted(!isMuted)}
+                    className={`p-2 rounded-lg transition cursor-pointer ${
+                      isMuted
+                        ? "bg-red-500/30 text-red-300 border border-red-500/40"
+                        : "text-white/80 hover:text-white hover:bg-white/10"
+                    }`}
+                    title="Sound Effects"
+                  >
                     {isMuted ? (
                       <VolumeX className="w-4 h-4" />
                     ) : (
                       <Volume2 className="w-4 h-4" />
                     )}
-                    <span>Sound Beep</span>
-                  </div>
-                  <span className="text-[9px] opacity-75">
-                    {isMuted ? "MUTED" : "ACTIVE"}
-                  </span>
-                </button>
+                  </button>
+                </div>
+
+                {/* COUNTDOWN OVERLAY */}
+                <AnimatePresence>
+                  {(sessionState === "countdown" ||
+                    sessionState === "countdown_retake") &&
+                    currentCountdownVal > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-30 pointer-events-none"
+                      >
+                        <motion.span
+                          key={currentCountdownVal}
+                          initial={{ scale: 0.4, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 1.4, opacity: 0 }}
+                          transition={{ duration: 0.8, ease: "easeOut" }}
+                          className="text-8xl md:text-9xl font-black text-[#bcff00] font-mono italic"
+                        >
+                          {currentCountdownVal}
+                        </motion.span>
+                      </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* SINGLE SNAPPED REVIEW OVERLAY */}
+                <AnimatePresence>
+                  {sessionState === "preview_single" && latestSnappedPhoto && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 bg-neutral-950 flex flex-col items-center justify-center p-4 z-40"
+                    >
+                      <div className="relative w-full h-full max-w-2xl max-h-[80%] rounded-xl overflow-hidden border border-white/20 shadow-2xl">
+                        <img
+                          src={latestSnappedPhoto}
+                          alt="Review Shot"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="mt-4 flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-[#bcff00]">
+                        <span className="w-2 h-2 rounded-full bg-[#bcff00] animate-ping" />
+                        <span>Foto Berhasil Diambil</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* TRIGGER BUTTON AREA */}
+              <div className="flex flex-col items-center gap-2 shrink-0 pb-2">
+                {(sessionState === "ready" ||
+                  sessionState === "countdown_retake") && (
+                  <button
+                    onClick={handleStartCapture}
+                    className="w-20 h-20 bg-[#bcff00] hover:bg-white text-black border-4 border-black rounded-full cursor-pointer shadow-[0_0_30px_rgba(188,255,0,0.4)] flex items-center justify-center transition-all hover:scale-105 active:scale-95 group"
+                  >
+                    <Camera className="w-8 h-8 text-black" />
+                  </button>
+                )}
+                <span className="font-mono text-xs tracking-widest text-[#bcff00] uppercase font-bold">
+                  {sessionState === "ready" ? "AMBIL FOTO" : "SESI BERJALAN..."}
+                </span>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </motion.div>
   );

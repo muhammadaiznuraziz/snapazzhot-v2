@@ -1,23 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { useApp } from "../../contexts/AppContext";
-import { BoothContextType, PhotoTransform } from "../../layouts/BoothLayout";
+import { BoothContextType } from "../../layouts/BoothLayout";
 import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  RotateCw,
-  FlipHorizontal,
-  FlipVertical,
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
   ArrowLeft,
   Check,
-  MousePointer2,
   Layers,
+  Move,
+  RotateCcw,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion"; // Konsisten menggunakan framer-motion dari index
+import { motion } from "framer-motion";
 
 const AVAILABLE_FILTERS = [
   { id: "normal", name: "Normal", class: "" },
@@ -36,6 +31,11 @@ const AVAILABLE_FILTERS = [
   { id: "vivid", name: "Vivid Glow", class: "saturate-[1.3] contrast-[1.1]" },
 ];
 
+interface PositionTransform {
+  x: number;
+  y: number;
+}
+
 export default function BoothEditor() {
   const context = useOutletContext<BoothContextType>();
   const navigate = useNavigate();
@@ -45,19 +45,24 @@ export default function BoothEditor() {
     capturedFrames,
     frameFilters,
     setFrameFilters,
-    frameStickers,
-    setFrameStickers,
-    photoTransforms,
-    setPhotoTransforms,
     selectedFrameId,
     handleCompileLayout,
   } = context;
 
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState<"crop" | "filter">("crop");
   const [compiling, setCompiling] = useState(false);
   const [imageRatios, setImageRatios] = useState<Record<number, number>>({});
   const [isMobile, setIsMobile] = useState(false);
+
+  // PosisiOffset per slot foto
+  const [photoPositions, setPhotoPositions] = useState<
+    Record<number, PositionTransform>
+  >({});
+
+  // Ref untuk mengelola Dragging
+  const isDraggingRef = useRef(false);
+  const dragStartPosRef = useRef({ x: 0, y: 0 });
+  const initialPhotoPosRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     if (capturedFrames.length === 0 && !compiling) {
@@ -167,33 +172,6 @@ export default function BoothEditor() {
   const previewWidth = canvasWidth * previewScale;
   const previewHeight = canvasHeight * previewScale;
 
-  const defaultTransform = (): PhotoTransform => ({
-    translateX: 0,
-    translateY: 0,
-    scale: 1,
-    rotation: 0,
-    mirrorX: false,
-    mirrorY: false,
-  });
-
-  const getTransform = (idx: number): PhotoTransform => {
-    return photoTransforms[idx] || defaultTransform();
-  };
-
-  useEffect(() => {
-    if (capturedFrames.length > 0) {
-      setPhotoTransforms((prev) => {
-        const next = { ...prev };
-        capturedFrames.forEach((_, idx) => {
-          if (!next[idx]) {
-            next[idx] = defaultTransform();
-          }
-        });
-        return next;
-      });
-    }
-  }, [capturedFrames, setPhotoTransforms]);
-
   const applyFilterToCurrent = (filterId: string) => {
     setFrameFilters((prev) => ({
       ...prev,
@@ -201,396 +179,70 @@ export default function BoothEditor() {
     }));
   };
 
-  const handleMouseDown = (e: React.MouseEvent, idx: number) => {
-    e.preventDefault();
+  const resetCurrentPosition = () => {
+    setPhotoPositions((prev) => ({
+      ...prev,
+      [currentFrameIndex]: { x: 0, y: 0 },
+    }));
+  };
+
+  // HANDLER DRAG UNTUK GESER POSISI FOTO
+  const handleMouseDown = (
+    e: React.MouseEvent | React.TouchEvent,
+    idx: number,
+  ) => {
     setCurrentFrameIndex(idx);
+    isDraggingRef.current = true;
 
-    const startX = e.clientX;
-    const startY = e.clientY;
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
 
-    const currentTransform = getTransform(idx);
-    const initTx = currentTransform.translateX;
-    const initTy = currentTransform.translateY;
+    dragStartPosRef.current = { x: clientX, y: clientY };
+    initialPhotoPosRef.current = photoPositions[idx] || { x: 0, y: 0 };
 
-    const imgRatio = imageRatios[idx] || 1.777;
-    const el = photoElementsSorted[idx];
-    if (!el) return;
-    const slotW = (el.width / 100) * canvasWidth;
-    const slotH = (el.height / 100) * canvasHeight;
-    const targetRatio = slotW / slotH;
+    const handleMouseMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!isDraggingRef.current) return;
 
-    let drawW = slotW;
-    let drawH = slotH;
-    if (imgRatio > targetRatio) {
-      drawW = slotH * imgRatio;
-    } else {
-      drawH = slotW / imgRatio;
-    }
+      const currentX =
+        "touches" in moveEvent
+          ? moveEvent.touches[0].clientX
+          : moveEvent.clientX;
+      const currentY =
+        "touches" in moveEvent
+          ? moveEvent.touches[0].clientY
+          : moveEvent.clientY;
 
-    const finalScale = Math.max(1, currentTransform.scale);
-    const scaledW = drawW * finalScale;
-    const scaledH = drawH * finalScale;
+      const deltaX = (currentX - dragStartPosRef.current.x) / previewScale;
+      const deltaY = (currentY - dragStartPosRef.current.y) / previewScale;
 
-    const maxTx = Math.max(0, (scaledW - slotW) / 2);
-    const maxTy = Math.max(0, (scaledH - slotH) / 2);
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-
-      const dragX = currentTransform.mirrorX ? -dx : dx;
-      const dragY = currentTransform.mirrorY ? -dy : dy;
-
-      let finalDx = dragX / previewScale;
-      let finalDy = dragY / previewScale;
-
-      if (currentTransform.rotation === 90) {
-        const tmp = finalDx;
-        finalDx = finalDy;
-        finalDy = -tmp;
-      } else if (currentTransform.rotation === 180) {
-        finalDx = -finalDx;
-        finalDy = -finalDy;
-      } else if (currentTransform.rotation === 270) {
-        const tmp = finalDx;
-        finalDx = -finalDy;
-        finalDy = tmp;
-      }
-
-      const nextTx = Math.min(maxTx, Math.max(-maxTx, initTx + finalDx));
-      const nextTy = Math.min(maxTy, Math.max(-maxTy, initTy + finalDy));
-
-      setPhotoTransforms((prev) => ({
+      setPhotoPositions((prev) => ({
         ...prev,
         [idx]: {
-          ...currentTransform,
-          translateX: nextTx,
-          translateY: nextTy,
+          x: initialPhotoPosRef.current.x + deltaX,
+          y: initialPhotoPosRef.current.y + deltaY,
         },
       }));
     };
 
     const handleMouseUp = () => {
+      isDraggingRef.current = false;
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("touchmove", handleMouseMove);
+      window.removeEventListener("touchend", handleMouseUp);
     };
 
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
-  };
-
-  const handleWheel = (e: React.WheelEvent, idx: number) => {
-    setCurrentFrameIndex(idx);
-    const currentTransform = getTransform(idx);
-
-    const zoomFactor = 0.05;
-    const direction = e.deltaY < 0 ? 1 : -1;
-    const nextScale = Math.min(
-      4.0,
-      Math.max(1.0, currentTransform.scale + direction * zoomFactor),
-    );
-
-    const imgRatio = imageRatios[idx] || 1.777;
-    const el = photoElementsSorted[idx];
-    if (!el) return;
-    const slotW = (el.width / 100) * canvasWidth;
-    const slotH = (el.height / 100) * canvasHeight;
-    const targetRatio = slotW / slotH;
-
-    let drawW = slotW;
-    let drawH = slotH;
-    if (imgRatio > targetRatio) {
-      drawW = slotH * imgRatio;
-    } else {
-      drawH = slotW / imgRatio;
-    }
-
-    const scaledW = drawW * nextScale;
-    const scaledH = drawH * nextScale;
-
-    const maxTx = Math.max(0, (scaledW - slotW) / 2);
-    const maxTy = Math.max(0, (scaledH - slotH) / 2);
-
-    const boundTx = Math.min(
-      maxTx,
-      Math.max(-maxTx, currentTransform.translateX),
-    );
-    const boundTy = Math.min(
-      maxTy,
-      Math.max(-maxTy, currentTransform.translateY),
-    );
-
-    setPhotoTransforms((prev) => ({
-      ...prev,
-      [idx]: {
-        ...currentTransform,
-        scale: nextScale,
-        translateX: boundTx,
-        translateY: boundTy,
-      },
-    }));
-  };
-
-  const touchRef = useRef<{
-    startX: number;
-    startY: number;
-    initTx: number;
-    initTy: number;
-    initScale: number;
-    lastDistance: number;
-  } | null>(null);
-
-  const handleTouchStart = (e: React.TouchEvent, idx: number) => {
-    setCurrentFrameIndex(idx);
-    const currentTransform = getTransform(idx);
-
-    if (e.touches.length === 1) {
-      const touch = e.touches[0];
-      touchRef.current = {
-        startX: touch.clientX,
-        startY: touch.clientY,
-        initTx: currentTransform.translateX,
-        initTy: currentTransform.translateY,
-        initScale: currentTransform.scale,
-        lastDistance: 0,
-      };
-    } else if (e.touches.length === 2) {
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
-      const dx = t1.clientX - t2.clientX;
-      const dy = t1.clientY - t2.clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      touchRef.current = {
-        startX: (t1.clientX + t2.clientX) / 2,
-        startY: (t1.clientY + t2.clientY) / 2,
-        initTx: currentTransform.translateX,
-        initTy: currentTransform.translateY,
-        initScale: currentTransform.scale,
-        lastDistance: dist,
-      };
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent, idx: number) => {
-    if (!touchRef.current) return;
-    const currentTransform = getTransform(idx);
-
-    const imgRatio = imageRatios[idx] || 1.777;
-    const el = photoElementsSorted[idx];
-    if (!el) return;
-    const slotW = (el.width / 100) * canvasWidth;
-    const slotH = (el.height / 100) * canvasHeight;
-    const targetRatio = slotW / slotH;
-
-    let drawW = slotW;
-    let drawH = slotH;
-    if (imgRatio > targetRatio) {
-      drawW = slotH * imgRatio;
-    } else {
-      drawH = slotW / imgRatio;
-    }
-
-    if (e.touches.length === 1 && touchRef.current.lastDistance === 0) {
-      const touch = e.touches[0];
-      const dx = touch.clientX - touchRef.current.startX;
-      const dy = touch.clientY - touchRef.current.startY;
-
-      const dragX = currentTransform.mirrorX ? -dx : dx;
-      const dragY = currentTransform.mirrorY ? -dy : dy;
-
-      let finalDx = dragX / previewScale;
-      let finalDy = dragY / previewScale;
-
-      if (currentTransform.rotation === 90) {
-        const tmp = finalDx;
-        finalDx = finalDy;
-        finalDy = -tmp;
-      } else if (currentTransform.rotation === 180) {
-        finalDx = -finalDx;
-        finalDy = -finalDy;
-      } else if (currentTransform.rotation === 270) {
-        const tmp = finalDx;
-        finalDx = -finalDy;
-        finalDy = tmp;
-      }
-
-      const finalScale = Math.max(1, currentTransform.scale);
-      const scaledW = drawW * finalScale;
-      const scaledH = drawH * finalScale;
-
-      const maxTx = Math.max(0, (scaledW - slotW) / 2);
-      const maxTy = Math.max(0, (scaledH - slotH) / 2);
-
-      const nextTx = Math.min(
-        maxTx,
-        Math.max(-maxTx, touchRef.current.initTx + finalDx),
-      );
-      const nextTy = Math.min(
-        maxTy,
-        Math.max(-maxTy, touchRef.current.initTy + finalDy),
-      );
-
-      setPhotoTransforms((prev) => ({
-        ...prev,
-        [idx]: {
-          ...currentTransform,
-          translateX: nextTx,
-          translateY: nextTy,
-        },
-      }));
-    } else if (e.touches.length === 2) {
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
-      const dx = t1.clientX - t2.clientX;
-      const dy = t1.clientY - t2.clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (touchRef.current.lastDistance > 0) {
-        const ratio = dist / touchRef.current.lastDistance;
-        const nextScale = Math.min(
-          4.0,
-          Math.max(1.0, touchRef.current.initScale * ratio),
-        );
-
-        const scaledW = drawW * nextScale;
-        const scaledH = drawH * nextScale;
-
-        const maxTx = Math.max(0, (scaledW - slotW) / 2);
-        const maxTy = Math.max(0, (scaledH - slotH) / 2);
-
-        const boundTx = Math.min(
-          maxTx,
-          Math.max(-maxTx, currentTransform.translateX),
-        );
-        const boundTy = Math.min(
-          maxTy,
-          Math.max(-maxTy, currentTransform.translateY),
-        );
-
-        setPhotoTransforms((prev) => ({
-          ...prev,
-          [idx]: {
-            ...currentTransform,
-            scale: nextScale,
-            translateX: boundTx,
-            translateY: boundTy,
-          },
-        }));
-      }
-    }
-  };
-
-  const handleTouchEnd = () => {
-    touchRef.current = null;
-  };
-
-  const lastTapRef = useRef<{ time: number; idx: number } | null>(null);
-
-  const handleTouchStartWithDoubleTap = (e: React.TouchEvent, idx: number) => {
-    const now = Date.now();
-    if (
-      lastTapRef.current &&
-      lastTapRef.current.idx === idx &&
-      now - lastTapRef.current.time < 300
-    ) {
-      handleReset(idx);
-      lastTapRef.current = null;
-      return;
-    }
-    lastTapRef.current = { time: now, idx };
-    handleTouchStart(e, idx);
-  };
-
-  const handleReset = (idx: number) => {
-    setPhotoTransforms((prev) => ({
-      ...prev,
-      [idx]: defaultTransform(),
-    }));
-  };
-
-  const handleZoomIncrement = (amount: number) => {
-    const current = getTransform(currentFrameIndex);
-    const nextScale = Math.min(4.0, Math.max(1.0, current.scale + amount));
-    updateScaleValue(currentFrameIndex, nextScale);
-  };
-
-  const updateScaleValue = (idx: number, nextScale: number) => {
-    const current = getTransform(idx);
-    const imgRatio = imageRatios[idx] || 1.777;
-    const el = photoElementsSorted[idx];
-    if (!el) return;
-    const slotW = (el.width / 100) * canvasWidth;
-    const slotH = (el.height / 100) * canvasHeight;
-    const targetRatio = slotW / slotH;
-
-    let drawW = slotW;
-    let drawH = slotH;
-    if (imgRatio > targetRatio) {
-      drawW = slotH * imgRatio;
-    } else {
-      drawH = slotW / imgRatio;
-    }
-
-    const scaledW = drawW * nextScale;
-    const scaledH = drawH * nextScale;
-
-    const maxTx = Math.max(0, (scaledW - slotW) / 2);
-    const maxTy = Math.max(0, (scaledH - slotH) / 2);
-
-    const boundTx = Math.min(maxTx, Math.max(-maxTx, current.translateX));
-    const boundTy = Math.min(maxTy, Math.max(-maxTy, current.translateY));
-
-    setPhotoTransforms((prev) => ({
-      ...prev,
-      [idx]: {
-        ...current,
-        scale: nextScale,
-        translateX: boundTx,
-        translateY: boundTy,
-      },
-    }));
-  };
-
-  const handleRotateCurrent = () => {
-    const current = getTransform(currentFrameIndex);
-    const nextRotation = (current.rotation + 90) % 360;
-    setPhotoTransforms((prev) => ({
-      ...prev,
-      [currentFrameIndex]: {
-        ...current,
-        rotation: nextRotation,
-      },
-    }));
-  };
-
-  const handleFlipHorizontal = () => {
-    const current = getTransform(currentFrameIndex);
-    setPhotoTransforms((prev) => ({
-      ...prev,
-      [currentFrameIndex]: {
-        ...current,
-        mirrorX: !current.mirrorX,
-      },
-    }));
-  };
-
-  const handleFlipVertical = () => {
-    const current = getTransform(currentFrameIndex);
-    setPhotoTransforms((prev) => ({
-      ...prev,
-      [currentFrameIndex]: {
-        ...current,
-        mirrorY: !current.mirrorY,
-      },
-    }));
+    window.addEventListener("touchmove", handleMouseMove);
+    window.addEventListener("touchend", handleMouseUp);
   };
 
   const handleDone = async () => {
     if (compiling) return;
     setCompiling(true);
     try {
-      const ok = await handleCompileLayout();
+      const ok = await handleCompileLayout(photoPositions);
       if (ok) {
         navigate("/booth/print");
         return;
@@ -624,8 +276,8 @@ export default function BoothEditor() {
             RENDERING FINAL LAYOUT...
           </h2>
           <p className="text-[10px] text-white/60 leading-relaxed font-['Outfit'] font-bold tracking-wide uppercase">
-            Sedang merender tata letak template beserta filter retro, dan posisi
-            kustom transformasi foto...
+            Sedang merender tata letak template beserta posisi dan filter retro
+            pilihan Anda...
           </p>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 bg-black border border-white/10 text-[#bcff00] rounded-full font-['Outfit'] text-[9px] uppercase tracking-wider shadow-lg relative z-10">
@@ -638,119 +290,6 @@ export default function BoothEditor() {
 
   const currentFilter = frameFilters[currentFrameIndex] || "normal";
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case "crop":
-        return (
-          <div className="w-full space-y-4 text-left">
-            <div className="flex flex-col gap-1">
-              <span className="text-[9px] font-['Outfit'] font-black uppercase text-[#bcff00] tracking-widest">
-                KONTROL PRESISI TRANSFORMASI
-              </span>
-              <p className="text-[10px] font-['Outfit'] font-bold text-white/50 uppercase tracking-wide leading-tight">
-                Sesuaikan zoom, rotasi, atau pencerminan bingkai foto aktif.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                onClick={() => handleZoomIncrement(0.15)}
-                className="py-3 px-4 bg-black/40 hover:bg-[#bcff00] text-white hover:text-black border border-white/5 hover:border-transparent rounded-xl text-[10px] font-['Outfit'] font-black uppercase tracking-wider transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-              >
-                <ZoomIn className="w-4 h-4 text-inherit" />
-                Zoom +
-              </button>
-
-              <button
-                onClick={() => handleZoomIncrement(-0.15)}
-                className="py-3 px-4 bg-black/40 hover:bg-[#bcff00] text-white hover:text-black border border-white/5 hover:border-transparent rounded-xl text-[10px] font-['Outfit'] font-black uppercase tracking-wider transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-              >
-                <ZoomOut className="w-4 h-4 text-inherit" />
-                Zoom -
-              </button>
-
-              <button
-                onClick={handleFlipHorizontal}
-                className={`py-3 px-4 border rounded-xl text-[10px] font-['Outfit'] font-black uppercase tracking-wider transition flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
-                  getTransform(currentFrameIndex).mirrorX
-                    ? "bg-[#bcff00] text-black border-transparent"
-                    : "bg-black/40 text-white border-white/5 hover:border-[#bcff00]/40"
-                }`}
-              >
-                <FlipHorizontal className="w-4 h-4 text-inherit" />
-                Mirror H
-              </button>
-
-              <button
-                onClick={handleFlipVertical}
-                className={`py-3 px-4 border rounded-xl text-[10px] font-['Outfit'] font-black uppercase tracking-wider transition flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
-                  getTransform(currentFrameIndex).mirrorY
-                    ? "bg-[#bcff00] text-black border-transparent"
-                    : "bg-black/40 text-white border-white/5 hover:border-[#bcff00]/40"
-                }`}
-              >
-                <FlipVertical className="w-4 h-4 text-inherit" />
-                Mirror V
-              </button>
-
-              <button
-                onClick={handleRotateCurrent}
-                className="py-3 px-4 bg-black/40 hover:bg-[#bcff00] text-white hover:text-black border border-white/5 hover:border-transparent rounded-xl text-[10px] font-['Outfit'] font-black uppercase tracking-wider transition col-span-2 flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-              >
-                <RotateCw className="w-4 h-4 text-inherit" />
-                Rotate 90°
-              </button>
-
-              <button
-                onClick={() => handleReset(currentFrameIndex)}
-                className="py-3 px-4 bg-black/40 hover:bg-red-950/40 hover:text-red-400 border border-white/5 hover:border-red-500/30 rounded-xl text-[10px] font-['Outfit'] font-black uppercase tracking-wider transition col-span-2 flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-              >
-                <RotateCcw className="w-4 h-4 text-inherit" />
-                Reset Posisi Foto
-              </button>
-            </div>
-          </div>
-        );
-
-      case "filter":
-        return (
-          <div className="w-full space-y-4 text-left">
-            <div className="flex flex-col gap-1">
-              <span className="text-[9px] font-['Outfit'] font-black uppercase text-[#bcff00] tracking-widest">
-                RETRO & STUDIO FILTERS
-              </span>
-              <p className="text-[10px] font-['Outfit'] font-bold text-white/50 uppercase tracking-wide leading-tight">
-                Pilih filter warna estetik untuk memberikan nuansa khas pada
-                foto terpilih.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              {AVAILABLE_FILTERS.map((filter) => (
-                <button
-                  key={filter.id}
-                  onClick={() => applyFilterToCurrent(filter.id)}
-                  className={`py-3 px-4 rounded-xl border text-left font-['Outfit'] text-[10px] font-black transition cursor-pointer flex items-center justify-between shadow-sm uppercase ${
-                    currentFilter === filter.id
-                      ? "border-[#bcff00] bg-[#bcff00] text-black"
-                      : "border-white/5 bg-black/30 text-white/60 hover:text-white hover:border-white/15"
-                  }`}
-                >
-                  <span>{filter.name}</span>
-                  {currentFilter === filter.id && (
-                    <span className="w-1.5 h-1.5 bg-black rounded-full" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -758,24 +297,21 @@ export default function BoothEditor() {
       exit={{ opacity: 0 }}
       className="w-full h-[100dvh] flex flex-col bg-[#004ce5] text-white overflow-hidden font-['Outfit'] select-none box-border"
     >
-      {/* Background Matrix Grid */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-0" />
 
-      {/* MAIN CONTENT WORKSPACE AREA */}
       <div
         ref={mainRowRef}
         className="flex-1 min-h-0 flex flex-col md:flex-row items-stretch p-4 md:p-6 lg:p-8 gap-6 overflow-hidden relative z-10"
       >
-        {/* PREVIEW CONTAINER */}
+        {/* PREVIEW CANVAS CONTAINER */}
         <div
           style={
             !isMobile
               ? { width: `${previewWidth + 32}px`, height: "100%" }
               : { width: "100%", height: `${previewHeight + 32}px` }
           }
-          className="shrink-0 flex items-center justify-center bg-black/40 border border-white/15 rounded-[20px] relative overflow-hidden select-none transition-all duration-300 shadow-xl"
+          className="shrink-0 flex items-center justify-center select-none transition-all duration-300 shadow-xl"
         >
-          {/* Canvas Wrapper */}
           <div
             style={{
               width: `${canvasWidth}px`,
@@ -794,7 +330,6 @@ export default function BoothEditor() {
             }}
             className="shadow-2xl border border-white/10 relative overflow-hidden"
           >
-            {/* Elements Layer */}
             {elements.map((el: any) => {
               const style: React.CSSProperties = {
                 position: "absolute",
@@ -815,7 +350,6 @@ export default function BoothEditor() {
                   (pe: any) => pe.id === el.id,
                 );
                 const imageUrl = capturedFrames[photoIdx] || "";
-                const transform = getTransform(photoIdx);
                 const isSelected = photoIdx === currentFrameIndex;
 
                 const imgRatio = imageRatios[photoIdx] || 1.777;
@@ -831,6 +365,8 @@ export default function BoothEditor() {
                   drawH = slotW / imgRatio;
                 }
 
+                const pos = photoPositions[photoIdx] || { x: 0, y: 0 };
+
                 return (
                   <div
                     key={el.id}
@@ -838,19 +374,13 @@ export default function BoothEditor() {
                       ...style,
                       borderRadius: `${el.borderRadius || 0}px`,
                     }}
-                    className={`overflow-hidden bg-neutral-900 border relative flex items-center justify-center cursor-grab active:cursor-grabbing transition-all duration-300 ${
+                    onMouseDown={(e) => handleMouseDown(e, photoIdx)}
+                    onTouchStart={(e) => handleMouseDown(e, photoIdx)}
+                    className={`overflow-hidden bg-neutral-900 border relative flex items-center justify-center cursor-grab active:cursor-grabbing transition-all duration-150 ${
                       isSelected
                         ? "ring-4 ring-[#bcff00] shadow-[0_0_25px_rgba(188,255,0,0.4)] z-40 border-transparent"
                         : "border-white/10 hover:border-white/30"
                     }`}
-                    onMouseDown={(e) => handleMouseDown(e, photoIdx)}
-                    onWheel={(e) => handleWheel(e, photoIdx)}
-                    onTouchStart={(e) =>
-                      handleTouchStartWithDoubleTap(e, photoIdx)
-                    }
-                    onTouchMove={(e) => handleTouchMove(e, photoIdx)}
-                    onTouchEnd={handleTouchEnd}
-                    onClick={() => setCurrentFrameIndex(photoIdx)}
                   >
                     {imageUrl ? (
                       <img
@@ -862,14 +392,13 @@ export default function BoothEditor() {
                           top: "50%",
                           width: `${drawW}px`,
                           height: `${drawH}px`,
-                          marginLeft: `${-drawW / 2}px`,
-                          marginTop: `${-drawH / 2}px`,
-                          transform: `translate(${transform.translateX}px, ${transform.translateY}px) scale(${transform.scale}) rotate(${transform.rotation}deg) scaleX(${transform.mirrorX ? -1 : 1}) scaleY(${transform.mirrorY ? -1 : 1})`,
+                          marginLeft: `${-drawW / 2 + pos.x}px`,
+                          marginTop: `${-drawH / 2 + pos.y}px`,
                           transformOrigin: "center center",
                           maxWidth: "none",
                           maxHeight: "none",
                         }}
-                        className={`pointer-events-none select-none transition-transform duration-75 ${
+                        className={`pointer-events-none select-none transition-filter duration-150 object-cover ${
                           AVAILABLE_FILTERS.find(
                             (f) =>
                               f.id === (frameFilters[photoIdx] || "normal"),
@@ -884,8 +413,13 @@ export default function BoothEditor() {
                       </div>
                     )}
 
-                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-black text-[#bcff00] border border-white/10 text-[8px] font-['Outfit'] font-black tracking-widest uppercase rounded shadow-md z-30 select-none">
-                      #{photoIdx + 1} {isSelected && "• ACTIVE"}
+                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/80 backdrop-blur-sm text-[#bcff00] border border-white/10 text-[8px] font-['Outfit'] font-black tracking-widest uppercase rounded shadow-md z-30 select-none flex items-center gap-1">
+                      <span>#{photoIdx + 1}</span>
+                      {isSelected && (
+                        <span className="text-white flex items-center gap-1 border-l border-white/20 pl-1">
+                          <Move className="w-2.5 h-2.5 text-[#bcff00]" /> GESER
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -976,7 +510,6 @@ export default function BoothEditor() {
               return null;
             })}
 
-            {/* PNG Frame Overlay */}
             {template?.framePng && (
               <img
                 src={template.framePng}
@@ -987,122 +520,116 @@ export default function BoothEditor() {
           </div>
         </div>
 
-        {/* EDITOR PANEL & TOOLS */}
+        {/* EDITOR PANEL (FILTER & POSISI RESET) */}
         {!isMobile ? (
-          // DESKTOP LAYOUT
-          <div className="flex-1 min-h-0 bg-neutral-900 border border-white/15 rounded-[20px] shadow-xl flex flex-col overflow-hidden">
-            {/* TABS HEADER */}
-            <div className="px-5 pt-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-black/30">
-              <div className="flex text-[10px] font-['Outfit'] font-black uppercase tracking-widest gap-4">
-                <button
-                  onClick={() => setActiveTab("crop")}
-                  className={`pb-3 px-1 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-                    activeTab === "crop"
-                      ? "border-[#bcff00] text-[#bcff00]"
-                      : "border-transparent text-white/40 hover:text-white/80"
-                  }`}
-                >
-                  <MousePointer2 className="w-3.5 h-3.5" />
-                  Posisi & Zoom
-                </button>
-                <button
-                  onClick={() => setActiveTab("filter")}
-                  className={`pb-3 px-1 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-                    activeTab === "filter"
-                      ? "border-[#bcff00] text-[#bcff00]"
-                      : "border-transparent text-white/40 hover:text-white/80"
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  Filter Warna
-                </button>
+          <div className="flex-1 md:w-[340px] lg:w-[360px] xl:w-[400px] 2xl:w-[440px] min-h-0 bg-neutral-900/90 backdrop-blur-md border border-white/15 rounded-2xl shadow-2xl flex flex-col overflow-hidden justify-between">
+            <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-black/40 gap-3">
+              <div className="flex items-center gap-2 text-[#bcff00]">
+                <Layers className="w-4 h-4" />
+                <span className="text-xs font-['Outfit'] font-black uppercase tracking-widest">
+                  FILTER WARNA
+                </span>
               </div>
-            </div>
 
-            {/* ACTIVE FRAME NAVIGATOR */}
-            <div className="px-5 py-3.5 bg-black/10 border-b border-white/5 flex items-center justify-between gap-4 shrink-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-black/50 border border-white/10 p-1 rounded-xl">
                 <button
                   disabled={currentFrameIndex === 0}
                   onClick={() => setCurrentFrameIndex((prev) => prev - 1)}
-                  className="p-1.5 bg-neutral-800 hover:bg-[#bcff00] hover:text-black border border-white/10 hover:border-transparent text-white disabled:opacity-25 disabled:hover:bg-neutral-800 disabled:hover:text-white transition rounded-lg cursor-pointer shadow"
+                  className="p-1.5 bg-neutral-800 hover:bg-[#bcff00] hover:text-black border border-white/10 hover:border-transparent text-white disabled:opacity-20 transition rounded-lg cursor-pointer"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
-                <span className="font-['Outfit'] text-[10px] font-black uppercase tracking-widest text-white px-2.5">
-                  SLOT FOTO: #{currentFrameIndex + 1} / {capturedFrames.length}
+                <span className="font-['Outfit'] text-[10px] font-black tracking-wider text-white px-2 uppercase">
+                  SLOT #{currentFrameIndex + 1} / {capturedFrames.length || 4}
                 </span>
                 <button
-                  disabled={currentFrameIndex === capturedFrames.length - 1}
+                  disabled={
+                    currentFrameIndex === (capturedFrames.length || 4) - 1
+                  }
                   onClick={() => setCurrentFrameIndex((prev) => prev + 1)}
-                  className="p-1.5 bg-neutral-800 hover:bg-[#bcff00] hover:text-black border border-white/10 hover:border-transparent text-white disabled:opacity-25 disabled:hover:bg-neutral-800 disabled:hover:text-white transition rounded-lg cursor-pointer shadow"
+                  className="p-1.5 bg-neutral-800 hover:bg-[#bcff00] hover:text-black border border-white/10 hover:border-transparent text-white disabled:opacity-20 transition rounded-lg cursor-pointer"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0 text-left">
+              {/* Petunjuk Posisi Geser */}
+              <div className="p-3 bg-black/40 border border-white/10 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-['Outfit'] font-bold text-white/80">
+                  <Move className="w-4 h-4 text-[#bcff00]" />
+                  <span>Klik & tahan foto untuk mensesuaikan posisi</span>
+                </div>
+                <button
+                  onClick={resetCurrentPosition}
+                  className="p-1.5 bg-neutral-800 hover:bg-white hover:text-black text-white/70 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition cursor-pointer"
+                  title="Reset Posisi Foto"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Reset
                 </button>
               </div>
 
-              <div className="font-['Outfit'] text-[8px] uppercase tracking-widest text-[#bcff00] font-black flex items-center gap-1.5 bg-black/50 px-2.5 py-1 rounded-full border border-white/5">
-                <Sparkles className="w-3 h-3 text-[#bcff00] animate-pulse" />
-                Live Engine
+              <div className="flex flex-col gap-1 pt-2">
+                <span className="text-[9px] font-['Outfit'] font-black uppercase text-[#bcff00] tracking-widest">
+                  RETRO & STUDIO FILTERS
+                </span>
+                <p className="text-[10px] font-['Outfit'] font-bold text-white/50 uppercase tracking-wide leading-tight">
+                  Pilih filter warna estetik untuk memberikan nuansa khas pada
+                  foto slot #{currentFrameIndex + 1}.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                {AVAILABLE_FILTERS.map((filter) => (
+                  <button
+                    key={filter.id}
+                    onClick={() => applyFilterToCurrent(filter.id)}
+                    className={`py-3.5 px-4 rounded-xl border text-left font-['Outfit'] text-[10px] font-black transition cursor-pointer flex items-center justify-between shadow-sm uppercase ${
+                      currentFilter === filter.id
+                        ? "border-[#bcff00] bg-[#bcff00] text-black shadow-[0_0_15px_rgba(188,255,0,0.2)]"
+                        : "border-white/10 bg-black/40 text-white/60 hover:text-white hover:border-white/25"
+                    }`}
+                  >
+                    <span>{filter.name}</span>
+                    {currentFilter === filter.id && (
+                      <span className="w-2 h-2 bg-black rounded-full" />
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* SCROLLABLE TOOL CONTENT */}
-            <div className="flex-1 overflow-y-auto p-5 min-h-0 text-left">
-              {renderTabContent()}
-            </div>
-
-            {/* ACTION FOOTER */}
-            <div className="p-5 border-t border-white/10 bg-black/40 flex flex-col gap-2.5 shrink-0">
-              <button
-                onClick={handleDone}
-                className="w-full py-4 px-6 bg-[#bcff00] hover:bg-white text-black text-xs font-['Outfit'] font-black uppercase tracking-widest rounded-xl transition duration-150 cursor-pointer shadow-lg flex items-center justify-center gap-1.5"
-              >
-                <Check className="w-4 h-4 stroke-[3]" />
-                Simpan
-              </button>
+            <div className="p-4 border-t border-white/10 bg-black/60 flex items-center gap-3 shrink-0">
               <button
                 onClick={() => navigate("/booth/camera")}
-                className="w-full py-3 px-6 bg-black/30 hover:bg-red-950/50 hover:text-red-400 border border-white/5 hover:border-red-500/30 text-[10px] font-['Outfit'] font-black uppercase tracking-widest text-white/70 rounded-xl transition duration-150 cursor-pointer flex items-center justify-center gap-1.5"
+                className="flex-1 py-3 px-4 bg-black/40 hover:bg-red-950/60 hover:text-red-400 border border-white/10 text-[10px] font-['Outfit'] font-black uppercase tracking-wider text-white/70 rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />
-                Ulang Sesi Kamera
+                <span>Ulang Kamera</span>
+              </button>
+              <button
+                onClick={handleDone}
+                className="flex-[1.5] py-3 px-4 bg-[#bcff00] hover:bg-white text-black text-[10px] font-['Outfit'] font-black uppercase tracking-wider rounded-xl transition cursor-pointer shadow-[0_0_20px_rgba(188,255,0,0.25)] flex items-center justify-center gap-2"
+              >
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>Simpan & Lanjut</span>
               </button>
             </div>
           </div>
         ) : (
-          // MOBILE BOTTOM LAYOUT
-          <div className="flex-1 bg-neutral-900 border border-white/15 rounded-t-[20px] shadow-2xl flex flex-col overflow-hidden">
+          /* MOBILE BOTTOM LAYOUT */
+          <div className="flex-1 bg-neutral-900/95 border border-white/15 rounded-t-2xl shadow-2xl flex flex-col overflow-hidden">
             <div className="w-full flex justify-center py-2 bg-black/20 shrink-0">
               <div className="w-12 h-1 bg-white/20 rounded-full" />
             </div>
 
-            <div className="px-4 border-b border-white/5 flex justify-around bg-black/30 shrink-0">
-              <button
-                onClick={() => setActiveTab("crop")}
-                className={`pb-2.5 pt-1 text-[10px] font-['Outfit'] font-black uppercase tracking-widest transition cursor-pointer flex flex-col items-center gap-1 ${
-                  activeTab === "crop"
-                    ? "text-[#bcff00] border-b-2 border-[#bcff00]"
-                    : "text-white/40"
-                }`}
-              >
-                <MousePointer2 className="w-4 h-4" />
-                Posisi
-              </button>
-              <button
-                onClick={() => setActiveTab("filter")}
-                className={`pb-2.5 pt-1 text-[10px] font-['Outfit'] font-black uppercase tracking-widest transition cursor-pointer flex flex-col items-center gap-1 ${
-                  activeTab === "filter"
-                    ? "text-[#bcff00] border-b-2 border-[#bcff00]"
-                    : "text-white/40"
-                }`}
-              >
-                <Layers className="w-4 h-4" />
-                Filter
-              </button>
-            </div>
-
-            <div className="px-4 py-2 bg-black/10 border-b border-white/5 flex items-center justify-between shrink-0">
+            <div className="px-4 py-2 bg-black/30 border-b border-white/5 flex items-center justify-between shrink-0">
+              <span className="font-['Outfit'] text-[10px] font-black uppercase tracking-widest text-[#bcff00] flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5" />
+                Filter Warna
+              </span>
               <div className="flex items-center gap-1.5">
                 <button
                   disabled={currentFrameIndex === 0}
@@ -1122,21 +649,48 @@ export default function BoothEditor() {
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <span className="text-[8px] font-['Outfit'] text-white/45 font-bold uppercase tracking-wide">
-                Gunakan Gesture untuk Zoom & Geser
-              </span>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 min-h-0 bg-neutral-900 text-left">
-              {renderTabContent()}
+            <div className="flex-1 overflow-y-auto p-4 min-h-0 text-left space-y-3">
+              <div className="flex items-center justify-between bg-black/30 p-2 rounded-lg text-[9px] font-black uppercase text-white/70">
+                <span className="flex items-center gap-1">
+                  <Move className="w-3 h-3 text-[#bcff00]" />
+                  Usap/Geser foto untuk sesuaikan posisi
+                </span>
+                <button
+                  onClick={resetCurrentPosition}
+                  className="text-[#bcff00] underline"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {AVAILABLE_FILTERS.map((filter) => (
+                  <button
+                    key={filter.id}
+                    onClick={() => applyFilterToCurrent(filter.id)}
+                    className={`py-3 px-3 rounded-xl border text-left font-['Outfit'] text-[9px] font-black transition cursor-pointer flex items-center justify-between uppercase ${
+                      currentFilter === filter.id
+                        ? "border-[#bcff00] bg-[#bcff00] text-black"
+                        : "border-white/10 bg-black/30 text-white/60"
+                    }`}
+                  >
+                    <span>{filter.name}</span>
+                    {currentFilter === filter.id && (
+                      <span className="w-1.5 h-1.5 bg-black rounded-full" />
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="p-4 border-t border-white/10 bg-black/40 flex items-center gap-3 shrink-0">
               <button
                 onClick={() => navigate("/booth/camera")}
-                className="flex-1 py-3 bg-black/30 border border-white/5 text-[9px] font-['Outfit'] font-black uppercase tracking-widest text-white/75 rounded-xl flex items-center justify-center gap-1 cursor-pointer"
+                className="flex-1 py-3 bg-black/30 border border-white/10 text-[9px] font-['Outfit'] font-black uppercase tracking-widest text-white/75 rounded-xl flex items-center justify-center gap-1 cursor-pointer"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="w-3.5 h-3.5" />
                 Ulang
               </button>
               <button

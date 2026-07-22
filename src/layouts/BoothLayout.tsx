@@ -402,12 +402,11 @@ export default function BoothLayout() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return "";
 
-    // Vibrant background gradients representing lighting aesthetics
     const gradients = [
-      ["#1e1b4b", "#311042", "#0f051d"], // Cosmic Indigo
-      ["#064e3b", "#022c22", "#011c14"], // Emerald Forest
-      ["#4c0519", "#3b0712", "#1c0005"], // Velvet Wine
-      ["#1e293b", "#0f172a", "#020617"], // Deep Slate
+      ["#1e1b4b", "#311042", "#0f051d"],
+      ["#064e3b", "#022c22", "#011c14"],
+      ["#4c0519", "#3b0712", "#1c0005"],
+      ["#1e293b", "#0f172a", "#020617"],
     ];
     const gradColors = gradients[index % gradients.length];
     const fillGrad = ctx.createRadialGradient(640, 360, 100, 640, 360, 800);
@@ -417,7 +416,6 @@ export default function BoothLayout() {
     ctx.fillStyle = fillGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Grid details
     ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
     ctx.lineWidth = 1;
     for (let x = 0; x < canvas.width; x += 80) {
@@ -427,7 +425,6 @@ export default function BoothLayout() {
       ctx.stroke();
     }
 
-    // Render lens blur circles
     for (let i = 0; i < 6; i++) {
       ctx.fillStyle = `rgba(59, 130, 246, ${0.05 + i * 0.02})`;
       ctx.beginPath();
@@ -441,12 +438,10 @@ export default function BoothLayout() {
       ctx.fill();
     }
 
-    // Camera feedback outlines
     ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
     ctx.lineWidth = 2;
     ctx.strokeRect(40, 40, canvas.width - 80, canvas.height - 80);
 
-    // Crosshair
     ctx.beginPath();
     ctx.moveTo(640, 340);
     ctx.lineTo(640, 380);
@@ -454,7 +449,6 @@ export default function BoothLayout() {
     ctx.lineTo(660, 360);
     ctx.stroke();
 
-    // Human representation placeholder
     ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
     ctx.font = "bold 28px sans-serif";
     ctx.textAlign = "center";
@@ -659,6 +653,7 @@ export default function BoothLayout() {
                       pixelY,
                       pixelWidth,
                       pixelHeight,
+                      true, // BTS Media Mode
                     );
                   } else if (staticPic) {
                     drawMediaOnCanvas(
@@ -669,6 +664,7 @@ export default function BoothLayout() {
                       pixelY,
                       pixelWidth,
                       pixelHeight,
+                      false,
                     );
                   }
                 }
@@ -829,6 +825,7 @@ export default function BoothLayout() {
                     pixelY,
                     pixelWidth,
                     pixelHeight,
+                    true,
                   );
                 } else if (staticPic) {
                   drawMediaOnCanvas(
@@ -839,6 +836,7 @@ export default function BoothLayout() {
                     pixelY,
                     pixelWidth,
                     pixelHeight,
+                    false,
                   );
                 }
               });
@@ -874,9 +872,9 @@ export default function BoothLayout() {
                   vid &&
                   vid.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
                 ) {
-                  drawMediaOnCanvas(recordCtx, vid, i, x, y, w, h);
+                  drawMediaOnCanvas(recordCtx, vid, i, x, y, w, h, true);
                 } else if (staticPic) {
-                  drawMediaOnCanvas(recordCtx, staticPic, i, x, y, w, h);
+                  drawMediaOnCanvas(recordCtx, staticPic, i, x, y, w, h, false);
                 }
               };
 
@@ -1102,7 +1100,7 @@ export default function BoothLayout() {
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       setUploading(false);
-      return;
+      return false;
     }
 
     const template = templates?.find(
@@ -1119,7 +1117,6 @@ export default function BoothLayout() {
       canvas.width = template.canvasWidth || 1200;
       canvas.height = template.canvasHeight || 800;
 
-      // 1. Draw Background Image if any (with crossOrigin to prevent canvas taint)
       if (template.backgroundImage) {
         await new Promise((resolve) => {
           const bgImg = new Image();
@@ -1143,14 +1140,10 @@ export default function BoothLayout() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      // 2. Sort elements by zIndex
       const sortedElements = [...(template.elements || [])].sort(
         (a, b) => (a.zIndex || 0) - (b.zIndex || 0),
       );
 
-      // Filter and sort photo slots by their physical positions (top-to-bottom, left-to-right)
-      // so that photo frames map to the correct logical sequence of captured frames.
-      // We use a robust grouping-by-row algorithm to avoid non-transitive sort issues that can corrupt JS arrays.
       const rawPhotoElements = [...(template.elements || [])].filter(
         (el) => el.type === "photo",
       );
@@ -1162,7 +1155,6 @@ export default function BoothLayout() {
         for (const r of rows) {
           const avgY = r.reduce((sum, item) => sum + item.y, 0) / r.length;
           if (Math.abs(avgY - el.y) < 10) {
-            // 10% height tolerance is safe for row alignment
             r.push(el);
             foundRow = true;
             break;
@@ -1187,7 +1179,6 @@ export default function BoothLayout() {
 
         ctx.save();
 
-        // Handle rotation
         if (el.rotation) {
           const centerX = pixelX + pixelWidth / 2;
           const centerY = pixelY + pixelHeight / 2;
@@ -1196,13 +1187,11 @@ export default function BoothLayout() {
           ctx.translate(-centerX, -centerY);
         }
 
-        // Handle opacity
         if (el.opacity !== undefined) {
           ctx.globalAlpha = el.opacity / 100;
         }
 
         if (el.type === "photo") {
-          // Find which capture index this photo element corresponds to
           const photoIndex = photoElements.findIndex(
             (pe: any) => pe.id === el.id,
           );
@@ -1291,7 +1280,6 @@ export default function BoothLayout() {
 
           ctx.fillText(text, pixelX, pixelY);
         } else if (el.type === "qr") {
-          // Draw a stylized vector QR Code mockup box
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(pixelX, pixelY, pixelWidth, pixelHeight);
           ctx.strokeStyle = "#000000";
@@ -1303,7 +1291,6 @@ export default function BoothLayout() {
             pixelHeight - ctx.lineWidth,
           );
 
-          // Draw nested squares inside corners for QR look
           const boxSize = pixelWidth * 0.25;
           ctx.fillRect(
             pixelX + ctx.lineWidth,
@@ -1365,14 +1352,12 @@ export default function BoothLayout() {
         ctx.restore();
       };
 
-      // 2a. Draw standard elements that do NOT render on top of the frame overlay
       for (const el of sortedElements) {
         if (el.hidden) continue;
         if (el.renderOnTop) continue;
         await drawSingleElement(el);
       }
 
-      // Capture collage without frame
       try {
         noFrameImageBase64 = canvas.toDataURL("image/png");
       } catch (e) {
@@ -1380,7 +1365,6 @@ export default function BoothLayout() {
         noFrameImageBase64 = "";
       }
 
-      // 3. Draw overlay Frame PNG template over the entire canvas at the end!
       if (template.framePng) {
         await new Promise((resolve) => {
           const frameImg = new Image();
@@ -1401,7 +1385,6 @@ export default function BoothLayout() {
         });
       }
 
-      // 2b. Draw premium/custom elements that ARE set to render on top of the frame overlay
       for (const el of sortedElements) {
         if (el.hidden) continue;
         if (!el.renderOnTop) continue;
@@ -1426,7 +1409,6 @@ export default function BoothLayout() {
           canvas.height = 800;
         }
 
-        // Draw custom background image or color fallback
         if (activeEvent.backgroundImage) {
           await new Promise((resolve) => {
             const bgImg = new Image();
@@ -1447,7 +1429,6 @@ export default function BoothLayout() {
           ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
-        // Draw custom slots
         positions = activeEvent.layoutPositions || [];
         for (
           let i = 0;
@@ -1470,7 +1451,6 @@ export default function BoothLayout() {
           );
         }
 
-        // Overlay branding footer
         drawBrandingFooter(
           ctx,
           canvas.width,
@@ -1723,21 +1703,18 @@ export default function BoothLayout() {
         }
       }
 
-      // Capture collage without frame
       noFrameImageBase64 = canvas.toDataURL("image/png");
 
       drawFrameOverlayDecoration(ctx, canvas.width, canvas.height);
     }
-    // --- Capture final image with frame overlay ---
+
     let finalImageBase64 = "";
     try {
       finalImageBase64 = canvas.toDataURL("image/png");
     } catch (e) {
       console.warn("Canvas export (final) blocked (tainted canvas).", e);
-      // If canvas is tainted, try exporting a clean version without external images
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      // Just use the fallback - user will see a blank background
       try {
         finalImageBase64 = canvas.toDataURL("image/png");
       } catch (e2) {
@@ -1775,7 +1752,6 @@ export default function BoothLayout() {
         }
       }
 
-      // Upload to Supabase Storage + Database
       const layoutBlob = await anyToBlob(finalImageBase64);
       const layoutName = `${activeEvent.id}/${Date.now()}-layout.png`;
       const { error: err1 } = await supabase.storage
@@ -1903,6 +1879,7 @@ export default function BoothLayout() {
     y: number,
     w: number,
     h: number,
+    isBtsMedia: boolean = false,
   ) => {
     if (!source) return;
     ctx.save();
@@ -1913,7 +1890,6 @@ export default function BoothLayout() {
     const filterId = frameFilters[frameIndex] || "normal";
     applyFilterToCanvas(ctx, filterId);
 
-    // Get user transform
     const transform = photoTransforms[frameIndex] || {
       translateX: 0,
       translateY: 0,
@@ -1936,7 +1912,6 @@ export default function BoothLayout() {
     const imgRatio = sourceWidth / sourceHeight;
     const targetRatio = w / h;
 
-    // Base cover dimensions
     let drawW = w;
     let drawH = h;
     if (imgRatio > targetRatio) {
@@ -1945,33 +1920,31 @@ export default function BoothLayout() {
       drawH = w / imgRatio;
     }
 
-    // Apply scale (zoom) - user scale is >= 1.0
     const finalScale = Math.max(1, transform.scale);
     const scaledW = drawW * finalScale;
     const scaledH = drawH * finalScale;
 
-    // Max allowed translation to keep the slot fully covered
     const maxTx = Math.max(0, (scaledW - w) / 2);
     const maxTy = Math.max(0, (scaledH - h) / 2);
 
-    // Bound translations
     const boundTx = Math.min(maxTx, Math.max(-maxTx, transform.translateX));
     const boundTy = Math.min(maxTy, Math.max(-maxTy, transform.translateY));
 
     ctx.save();
-
-    // Translate to the center of the slot
     ctx.translate(x + w / 2, y + h / 2);
 
-    // Apply mirroring
-    ctx.scale(transform.mirrorX ? -1 : 1, transform.mirrorY ? -1 : 1);
+    // Dapatkan orientasi mirror dari kamera global jika media adalah stream BTS mentah
+    let effectiveMirrorX = transform.mirrorX;
+    if (isBtsMedia && source instanceof HTMLVideoElement) {
+      effectiveMirrorX = mirror;
+    }
 
-    // Apply rotation
+    ctx.scale(effectiveMirrorX ? -1 : 1, transform.mirrorY ? -1 : 1);
+
     if (transform.rotation) {
       ctx.rotate((transform.rotation * Math.PI) / 180);
     }
 
-    // Draw source relative to center
     ctx.drawImage(
       source,
       -scaledW / 2 + boundTx,
@@ -1982,7 +1955,6 @@ export default function BoothLayout() {
 
     ctx.restore();
     ctx.filter = "none";
-
     ctx.restore();
   };
 
@@ -2002,7 +1974,7 @@ export default function BoothLayout() {
       }
       const img = new Image();
       img.onload = () => {
-        drawMediaOnCanvas(ctx, img, frameIndex, x, y, w, h);
+        drawMediaOnCanvas(ctx, img, frameIndex, x, y, w, h, false);
         resolve();
       };
       img.onerror = () => {
@@ -2283,7 +2255,6 @@ export default function BoothLayout() {
   if (!activeEvent) {
     return (
       <div className="w-full min-h-screen h-[100dvh] bg-[#0066ff] bg-grid-pattern relative flex flex-col justify-between p-6">
-        {" "}
         {loading ? (
           <div className="text-xs">Memuat konfigurasi event...</div>
         ) : (
@@ -2325,7 +2296,6 @@ export default function BoothLayout() {
 
   return (
     <div className="relative h-screen h-[100dvh] bg-[#f8f7f4] text-[#1a1a1a] flex flex-col justify-between overflow-hidden">
-      {/* Offscreen Canvas for rendering layout compilation */}
       <canvas ref={offscreenCanvasRef} style={{ display: "none" }} />
       <div className="flex-1 flex flex-col justify-stretch min-h-0 h-full relative overflow-hidden">
         <Outlet
