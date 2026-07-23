@@ -11,7 +11,9 @@ import {
   AlertCircle,
   Sparkles,
   Loader2,
-  CheckCircle2,
+  Eye,
+  X,
+  Camera,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -56,6 +58,9 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
   const [loading, setLoading] = useState<boolean>(Boolean(initialId));
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [zipProgress, setZipProgress] = useState({ percent: 0, status: "" });
+
+  // State Lightbox Modal
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isEnvValid || !activeId) {
@@ -109,7 +114,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
           setPhoto(null);
         }
       } catch (err) {
-        console.error("Failed to load session:", err);
+        console.error("Gagal mengambil sesi foto:", err);
         setPhoto(null);
       } finally {
         setLoading(false);
@@ -140,35 +145,35 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
       document.body.removeChild(link);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
     } catch (err) {
-      console.error("Download failure:", err);
+      console.error("Gagal mengunduh file:", err);
     }
   };
 
   const handleDownloadAllZip = async () => {
     if (!photo) return;
     setIsDownloading(true);
-    setZipProgress({ percent: 10, status: "Preparing files..." });
+    setZipProgress({ percent: 10, status: "Mempersiapkan antrean file..." });
 
     try {
       const zip = new JSZip();
-      let step = 10;
+      let step = 15;
 
-      // 1. Photostrip
+      // 1. Photo Strip
       if (photo.url) {
         const res = await fetch(photo.url);
         const blob = await res.blob();
         zip.file(`Photostrip_${photo.id}.png`, blob);
         step += 25;
-        setZipProgress({ percent: step, status: "Packaging Photo Strip..." });
+        setZipProgress({ percent: step, status: "Mengompres Photostrip..." });
       }
 
-      // 2. GIF
+      // 2. Animated GIF
       if (photo.meta?.gifUrl) {
         const res = await fetch(photo.meta.gifUrl);
         const blob = await res.blob();
         zip.file(`Animation_${photo.id}.gif`, blob);
         step += 20;
-        setZipProgress({ percent: step, status: "Packaging GIF..." });
+        setZipProgress({ percent: step, status: "Mengompres Animated GIF..." });
       }
 
       // 3. BTS Video
@@ -176,8 +181,8 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
         const res = await fetch(photo.meta.videoUrl);
         const blob = await res.blob();
         zip.file(`BTS_Video_${photo.id}.mp4`, blob);
-        step += 25;
-        setZipProgress({ percent: step, status: "Packaging Video..." });
+        step += 20;
+        setZipProgress({ percent: step, status: "Mengompres BTS Video..." });
       }
 
       // 4. Raw Photos
@@ -191,7 +196,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
         }
       }
 
-      setZipProgress({ percent: 90, status: "Compressing Zip Archive..." });
+      setZipProgress({ percent: 90, status: "Membuat arsip .zip..." });
       const zipBlob = await zip.generateAsync({ type: "blob" });
 
       const blobUrl = URL.createObjectURL(zipBlob);
@@ -203,26 +208,25 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
       document.body.removeChild(link);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
 
-      setZipProgress({ percent: 100, status: "Complete!" });
-      setTimeout(() => setIsDownloading(false), 1200);
+      setZipProgress({ percent: 100, status: "Pengunduhan Selesai!" });
+      setTimeout(() => setIsDownloading(false), 1500);
     } catch (err) {
-      console.error("ZIP Generation Error:", err);
+      console.error("Gagal membuat berkas ZIP:", err);
       setIsDownloading(false);
     }
   };
 
-  // Build Env Guardrail
+  // Environment Guardrail View
   if (!isEnvValid) {
     return (
-      <div className="min-h-screen bg-slate-950 text-red-400 p-6 flex flex-col items-center justify-center text-center">
-        <div className="bg-red-950/30 border border-red-900/50 backdrop-blur-xl p-8 rounded-3xl max-w-md w-full shadow-2xl">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2 text-white">
-            Build Environment Missing
+      <div className="min-h-screen bg-[#004ce5] text-white p-4 sm:p-6 flex flex-col items-center justify-center text-center font-sans">
+        <div className="bg-white/10 border border-white/20 backdrop-blur-xl p-6 sm:p-8 rounded-3xl max-w-md w-full shadow-2xl space-y-4">
+          <AlertCircle className="w-10 h-10 sm:w-12 sm:h-12 text-[#bcff00] mx-auto" />
+          <h2 className="text-lg sm:text-xl font-black">
+            Environment Variable Missing
           </h2>
-          <p className="text-sm text-slate-300 mb-4">
-            Required Supabase environment variables are missing from the build
-            configuration.
+          <p className="text-xs sm:text-sm text-white/80">
+            Variabel konfigurasi Supabase belum terinjeksi saat proses build.
           </p>
         </div>
       </div>
@@ -230,22 +234,27 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center p-4 sm:p-8 selection:bg-indigo-500 selection:text-white relative overflow-hidden">
-      {/* Background Glow Accents */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-600/15 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-0 right-10 w-[400px] h-[200px] bg-purple-600/10 blur-[100px] rounded-full pointer-events-none" />
+    <div className="min-h-screen bg-[#004ce5] text-white font-sans selection:bg-[#bcff00] selection:text-black relative overflow-x-hidden">
+      {/* Blueprint Grid Background Pattern */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.15] z-0"
+        style={{
+          backgroundImage: `linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)`,
+          backgroundSize: "32px 32px",
+        }}
+      />
 
-      {/* Main Container */}
-      <div className="w-full max-w-2xl mx-auto z-10 space-y-10">
-        {/* Header & Search Section */}
-        <header className="text-center space-y-6 pt-4">
+      {/* Responsive Container */}
+      <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-14 relative z-10 space-y-8 sm:space-y-12">
+        {/* Header & Search */}
+        <header className="text-center space-y-4 sm:space-y-6">
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/80 border border-slate-800 backdrop-blur-md shadow-inner"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-full bg-white/10 border border-white/20 backdrop-blur-md shadow-lg"
           >
-            <span className="font-extrabold tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 text-sm">
-              SNAPAZZHOT
+            <span className="text-lg sm:text-2xl font-extrabold tracking-tight italic text-[#bcff00] uppercase font-mono">
+              #SNAPAZZHOT
             </span>
           </motion.div>
 
@@ -253,83 +262,91 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="space-y-2"
+            className="space-y-1.5 sm:space-y-3"
           >
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2">
+            <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-tight sm:leading-none text-white lowercase">
               Download Your Memories{" "}
-              <Sparkles className="w-6 h-6 text-amber-400 fill-amber-400" />
+              <Sparkles className="inline-block w-6 h-6 sm:w-8 sm:h-8 text-[#bcff00] fill-[#bcff00]" />
             </h1>
-            <p className="text-slate-400 text-sm sm:text-base max-w-md mx-auto leading-relaxed">
+            <p className="text-white/80 text-xs sm:text-base md:text-lg max-w-md sm:max-w-xl mx-auto font-medium leading-relaxed">
               All of your photobooth memories are ready. Download your photos,
               GIF, and BTS video.
             </p>
           </motion.div>
 
-          {/* Download Code Search Form */}
+          {/* Search Bar Mobile-First */}
           <motion.form
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2 }}
             onSubmit={handleSearchSubmit}
-            className="flex items-center gap-2 max-w-md mx-auto pt-2"
+            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 max-w-md mx-auto pt-1 sm:pt-2"
           >
             <div className="relative flex-1">
               <input
                 type="text"
-                placeholder="Enter Session / Download Code"
+                placeholder="Masukkan Kode Unduh / Sesi"
                 value={searchCode}
                 onChange={(e) => setSearchCode(e.target.value)}
-                className="w-full bg-slate-900/90 border border-slate-800 rounded-2xl px-4 py-3.5 pl-11 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all shadow-lg backdrop-blur-md"
+                className="w-full bg-black/30 border border-white/30 rounded-2xl sm:rounded-full px-4 py-3 pl-11 sm:pl-12 text-xs sm:text-sm text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#bcff00] focus:border-transparent transition-all shadow-inner backdrop-blur-md"
               />
-              <Search className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-white/60 absolute left-4 top-1/2 -translate-y-1/2" />
             </div>
             <button
               type="submit"
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-6 py-3.5 rounded-2xl transition-all shadow-lg shadow-indigo-600/20 active:scale-95 flex items-center gap-2 shrink-0"
+              className="bg-black hover:bg-neutral-900 active:scale-95 text-white font-bold text-xs sm:text-sm px-6 py-3 sm:py-3.5 rounded-2xl sm:rounded-full transition cursor-pointer flex items-center justify-center gap-2 shadow-xl shrink-0 h-11"
             >
               Search
             </button>
           </motion.form>
         </header>
 
-        {/* Content Section */}
+        {/* Content Body */}
         {loading ? (
-          /* Skeleton Loader */
-          <div className="space-y-8 animate-pulse">
-            <div className="w-full h-96 bg-slate-900/60 border border-slate-800/80 rounded-[24px]" />
-            <div className="w-full h-48 bg-slate-900/60 border border-slate-800/80 rounded-[24px]" />
+          /* Skeleton Loader Responsive */
+          <div className="space-y-6 sm:space-y-8 animate-pulse">
+            <div className="w-full h-80 sm:h-[480px] bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl" />
+            <div className="w-full h-48 sm:h-[220px] bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl" />
           </div>
         ) : photo ? (
           /* Valid Session View */
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-10"
+            className="space-y-6 sm:space-y-10"
           >
             {/* 1. Large Photo Strip Preview */}
             {photo.url && (
-              <section className="bg-slate-900/40 border border-slate-800/80 backdrop-blur-xl p-4 sm:p-6 rounded-[24px] shadow-2xl">
-                <div className="relative max-w-sm mx-auto overflow-hidden rounded-2xl group shadow-2xl bg-black/40">
+              <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col items-center">
+                <div className="relative w-full max-w-[280px] xs:max-w-[320px] sm:max-w-sm rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl border border-white/30 bg-neutral-900 group">
                   <img
                     src={photo.url}
                     alt="Photostrip Preview"
-                    className="w-full h-auto object-contain rounded-2xl transform transition-transform duration-500 group-hover:scale-[1.02]"
+                    className="w-full h-auto object-contain rounded-xl sm:rounded-2xl transition-transform duration-500 group-hover:scale-[1.02]"
                   />
+                  <button
+                    onClick={() => setSelectedImage(photo.url)}
+                    aria-label="Lihat Foto Fullscreen"
+                    className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 p-2.5 sm:p-3 bg-white text-blue-600 rounded-full hover:scale-110 transition active:scale-95 shadow-lg"
+                  >
+                    <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
                 </div>
               </section>
             )}
 
             {/* 2. GIF Preview */}
             {photo.meta?.gifUrl && (
-              <section className="bg-slate-900/40 border border-slate-800/80 backdrop-blur-xl p-4 sm:p-6 rounded-[24px] shadow-2xl space-y-4">
-                <h3 className="text-xs uppercase font-semibold text-slate-400 tracking-wider flex items-center gap-2">
-                  <Film className="w-4 h-4 text-purple-400" /> Animated GIF
-                </h3>
-                <div className="relative max-w-sm mx-auto overflow-hidden rounded-2xl bg-black/40 shadow-xl">
+              <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl space-y-3 sm:space-y-4">
+                <div className="flex items-center gap-2 text-[#bcff00] font-bold text-xs sm:text-sm tracking-wider uppercase font-mono">
+                  <Film className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span>Animated GIF</span>
+                </div>
+                <div className="relative w-full max-w-[280px] xs:max-w-[320px] sm:max-w-sm mx-auto rounded-xl sm:rounded-2xl overflow-hidden border border-white/20 shadow-xl bg-black">
                   <img
                     src={photo.meta.gifUrl}
                     alt="Animated GIF Preview"
-                    className="w-full h-auto object-contain rounded-2xl"
+                    className="w-full h-auto object-contain rounded-xl sm:rounded-2xl"
                   />
                 </div>
               </section>
@@ -337,17 +354,17 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
 
             {/* 3. Behind The Scene Video Preview */}
             {photo.meta?.videoUrl && (
-              <section className="bg-slate-900/40 border border-slate-800/80 backdrop-blur-xl p-4 sm:p-6 rounded-[24px] shadow-2xl space-y-4">
-                <h3 className="text-xs uppercase font-semibold text-slate-400 tracking-wider flex items-center gap-2">
-                  <Video className="w-4 h-4 text-emerald-400" /> Behind The
-                  Scenes
-                </h3>
-                <div className="relative max-w-md mx-auto overflow-hidden rounded-2xl bg-black/60 shadow-xl border border-slate-800">
+              <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl space-y-3 sm:space-y-4">
+                <div className="flex items-center gap-2 text-[#bcff00] font-bold text-xs sm:text-sm tracking-wider uppercase font-mono">
+                  <Video className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span>Behind The Scenes Video</span>
+                </div>
+                <div className="relative w-full max-w-md mx-auto rounded-xl sm:rounded-2xl overflow-hidden border border-white/20 shadow-xl bg-black">
                   <video
                     src={photo.meta.videoUrl}
                     controls
                     playsInline
-                    className="w-full h-auto rounded-2xl"
+                    className="w-full h-auto rounded-xl sm:rounded-2xl"
                   />
                 </div>
               </section>
@@ -355,51 +372,65 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
 
             {/* 4. Photo Gallery Grid */}
             {photo.meta?.rawPhotos && photo.meta.rawPhotos.length > 0 && (
-              <section className="bg-slate-900/40 border border-slate-800/80 backdrop-blur-xl p-4 sm:p-6 rounded-[24px] shadow-2xl space-y-4">
-                <h3 className="text-xs uppercase font-semibold text-slate-400 tracking-wider flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4 text-indigo-400" /> Photo
-                  Gallery
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {photo.meta.rawPhotos.map((img, idx) => (
-                    <div
+              <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl space-y-3 sm:space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-[#bcff00] font-bold text-xs sm:text-sm tracking-wider uppercase font-mono">
+                    <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span>Photo Gallery</span>
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-white/70 font-mono">
+                    {photo.meta.rawPhotos.length} Items
+                  </span>
+                </div>
+                {/* Responsive Grid Adaptability */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-4">
+                  {photo.meta.rawPhotos.map((imgUrl, idx) => (
+                    <motion.div
                       key={idx}
-                      className="relative aspect-square overflow-hidden rounded-xl bg-slate-950 border border-slate-800 group shadow-md"
+                      whileHover={{ scale: 1.03 }}
+                      onClick={() => setSelectedImage(imgUrl)}
+                      className="group relative aspect-[3/4] bg-neutral-900 rounded-xl sm:rounded-2xl overflow-hidden border border-white/20 cursor-pointer shadow-lg"
                     >
                       <img
-                        src={img}
-                        alt={`Raw capture ${idx + 1}`}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        src={imgUrl}
+                        alt={`Capture ${idx + 1}`}
+                        loading="lazy"
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
-                    </div>
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="p-2 bg-white text-blue-600 rounded-full shadow-md">
+                          <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        </span>
+                      </div>
+                    </motion.div>
                   ))}
                 </div>
               </section>
             )}
 
-            {/* 5. Download Section */}
-            <section className="bg-slate-900/60 border border-slate-800 backdrop-blur-xl p-6 rounded-[24px] shadow-2xl space-y-4">
-              {/* Progress Bar overlay if zipping */}
+            {/* 5. Download Action Center */}
+            <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl space-y-3 sm:space-y-5">
+              {/* ZIP Compression Progress */}
               <AnimatePresence>
                 {isDownloading && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl space-y-2 overflow-hidden"
+                    className="bg-black/40 border border-white/20 p-3 sm:p-4 rounded-xl sm:rounded-2xl space-y-2 overflow-hidden"
                   >
-                    <div className="flex justify-between text-xs font-medium text-slate-300">
-                      <span className="flex items-center gap-1.5">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
-                        {zipProgress.status}
+                    <div className="flex justify-between text-[11px] sm:text-xs font-semibold">
+                      <span className="flex items-center gap-2 truncate">
+                        <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-[#bcff00] shrink-0" />
+                        <span className="truncate">{zipProgress.status}</span>
                       </span>
-                      <span className="text-indigo-400">
+                      <span className="text-[#bcff00] font-mono shrink-0 ml-2">
                         {zipProgress.percent}%
                       </span>
                     </div>
-                    <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                    <div className="w-full bg-white/20 rounded-full h-1.5 sm:h-2 overflow-hidden">
                       <div
-                        className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-300 rounded-full"
+                        className="bg-[#bcff00] h-full transition-all duration-300 rounded-full"
                         style={{ width: `${zipProgress.percent}%` }}
                       />
                     </div>
@@ -407,22 +438,22 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
                 )}
               </AnimatePresence>
 
-              {/* Primary Action Button */}
+              {/* Primary ZIP Button */}
               <button
                 onClick={handleDownloadAllZip}
                 disabled={isDownloading}
-                className="w-full py-4 bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white font-bold text-base rounded-2xl shadow-xl shadow-indigo-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 sm:py-4 px-4 bg-black hover:bg-neutral-900 disabled:bg-neutral-800 text-white font-black text-sm sm:text-base md:text-lg rounded-2xl sm:rounded-full transition cursor-pointer flex items-center justify-center gap-2 sm:gap-3 shadow-2xl active:scale-[0.99] min-h-[50px]"
               >
                 {isDownloading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin text-[#bcff00]" />
                 ) : (
-                  <Download className="w-5 h-5" />
+                  <Download className="w-5 h-5 sm:w-6 sm:h-6 text-[#bcff00]" />
                 )}
                 <span>Download Everything (.zip)</span>
               </button>
 
-              {/* Secondary Action Buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
+              {/* Secondary Buttons Responsive Flex/Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 pt-1">
                 {photo.url && (
                   <button
                     onClick={() =>
@@ -431,10 +462,10 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
                         `Photostrip_${photo.id}.png`,
                       )
                     }
-                    className="py-3 px-4 bg-slate-800/80 hover:bg-slate-800 text-slate-200 border border-slate-700/60 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 active:scale-95"
+                    className="w-full py-3 px-4 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl sm:rounded-full text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 min-h-[44px]"
                   >
-                    <ImageIcon className="w-4 h-4 text-indigo-400" />
-                    Download Photos
+                    <ImageIcon className="w-4 h-4 text-[#bcff00]" />
+                    <span>Download Photos</span>
                   </button>
                 )}
 
@@ -446,10 +477,10 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
                         `Animation_${photo.id}.gif`,
                       )
                     }
-                    className="py-3 px-4 bg-slate-800/80 hover:bg-slate-800 text-slate-200 border border-slate-700/60 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 active:scale-95"
+                    className="w-full py-3 px-4 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl sm:rounded-full text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 min-h-[44px]"
                   >
-                    <Film className="w-4 h-4 text-purple-400" />
-                    Download GIF
+                    <Film className="w-4 h-4 text-[#bcff00]" />
+                    <span>Download GIF</span>
                   </button>
                 )}
 
@@ -461,33 +492,71 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
                         `BTS_Video_${photo.id}.mp4`,
                       )
                     }
-                    className="py-3 px-4 bg-slate-800/80 hover:bg-slate-800 text-slate-200 border border-slate-700/60 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 active:scale-95"
+                    className="w-full py-3 px-4 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl sm:rounded-full text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 min-h-[44px]"
                   >
-                    <Video className="w-4 h-4 text-emerald-400" />
-                    Download Video
+                    <Video className="w-4 h-4 text-[#bcff00]" />
+                    <span>Download Video</span>
                   </button>
                 )}
               </div>
             </section>
           </motion.div>
         ) : (
-          /* Centered Error State Card */
+          /* Error Card Responsive */
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-slate-900/50 border border-slate-800/80 backdrop-blur-xl p-8 sm:p-12 rounded-[24px] text-center max-w-md mx-auto space-y-4 shadow-2xl"
+            className="bg-white/10 border border-white/20 backdrop-blur-xl p-6 sm:p-10 rounded-2xl sm:rounded-3xl text-center max-w-md mx-auto space-y-4 shadow-2xl"
           >
-            <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center justify-center mx-auto mb-2">
-              <AlertCircle className="w-8 h-8" />
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-red-500/20 border border-red-500/40 text-red-400 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
-            <h2 className="text-xl font-bold text-white">Memories Not Found</h2>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              The session code you provided is invalid, expired, or unavailable.
-              Please check the code and search again.
-            </p>
+            <div className="space-y-1.5">
+              <h2 className="text-xl sm:text-2xl font-black text-white">
+                Memories Not Found
+              </h2>
+              <p className="text-white/80 text-xs sm:text-sm leading-relaxed">
+                Sesi foto tidak ditemukan atau kode unduh telah kadaluarsa.
+                Silakan periksa kembali kode Anda.
+              </p>
+            </div>
           </motion.div>
         )}
       </div>
+
+      {/* Lightbox / Fullscreen Image Viewer Modal */}
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedImage(null)}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md p-4 flex items-center justify-center cursor-pointer"
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-2xl sm:max-w-3xl max-h-[85vh] bg-white/10 border border-white/20 backdrop-blur-2xl rounded-2xl sm:rounded-3xl overflow-hidden p-2 sm:p-3 shadow-2xl flex flex-col items-center"
+            >
+              <button
+                onClick={() => setSelectedImage(null)}
+                aria-label="Tutup Preview"
+                className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 bg-black/60 text-white rounded-full hover:bg-black transition z-10"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+              <img
+                src={selectedImage}
+                alt="Enlarged view"
+                className="max-h-[80vh] w-auto max-w-full object-contain rounded-xl sm:rounded-2xl"
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
