@@ -211,7 +211,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         supabase
           .from("photos")
           .select(PHOTOS_SELECT)
-          .order("timestamp", { ascending: false }),
+          .order("timestamp", { ascending: false })
+          .limit(200),
       ]);
 
       if (

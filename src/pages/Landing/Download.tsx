@@ -1,15 +1,20 @@
-"use client";
-
 import React, { useState, useEffect } from "react";
 import JSZip from "jszip";
-import { createClient } from "@supabase/supabase-js";
+import { useParams } from "react-router-dom";
+import { supabase } from "../../lib/supabaseClient";
 
-// Init Supabase Client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// --- SAFE ENVIRONMENT READ & FALLBACK ---
+const url = import.meta.env.VITE_SUPABASE_URL;
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Interfaces
+const rawUrl = url ? url.trim() : undefined;
+const rawKey = key ? key.trim() : undefined;
+
+// Validasi apakah variabel environment benar-benar ada dan berformat URL
+const isEnvValid = Boolean(
+  rawUrl && rawKey && typeof rawUrl === "string" && rawUrl.startsWith("http"),
+);
+
 interface PhotoMeta {
   gifUrl?: string;
   videoUrl?: string;
@@ -29,12 +34,10 @@ interface PhotoRecord {
   meta: PhotoMeta;
 }
 
-interface PageProps {
-  params: { id?: string };
-}
-
-export default function DownloadPage({ params }: PageProps) {
-  const id = params?.id || "PHO-1784703800040-70"; // Fallback ID jika dari router
+export default function DownloadPage({ id: propId }: { id?: string }) {
+  const params = useParams<{ id: string }>();
+  // Gunakan ID dari parameter URL, lalu prop, atau fallback
+  const id = params.id || propId || "";
 
   const [photo, setPhoto] = useState<PhotoRecord | null>(null);
   const [event, setEvent] = useState({
@@ -43,48 +46,46 @@ export default function DownloadPage({ params }: PageProps) {
   });
   const [loading, setLoading] = useState<boolean>(true);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
-  const [zipProgress, setZipProgress] = useState<{
-    percent: number;
-    status: string;
-  }>({ percent: 0, status: "" });
+  const [zipProgress, setZipProgress] = useState({ percent: 0, status: "" });
 
-  // 1. Fetch & Normalisasi Data dari Supabase
   useEffect(() => {
+    // Hindari fetch data jika env tidak valid (guardrail akan menangani UI-nya)
+    if (!isEnvValid) {
+      setLoading(false);
+      return;
+    }
+
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+
     async function fetchSession() {
       try {
         setLoading(true);
-        const PHOTO_SELECT =
-          "id, url, type, event_id, timestamp, username, template_name, like_count, meta";
-
         const { data: dbPhoto, error: photoErr } = await supabase
           .from("photos")
-          .select(PHOTO_SELECT)
+          .select(
+            "id, url, type, event_id, timestamp, username, template_name, like_count, meta"
+          )
           .eq("id", id)
           .maybeSingle();
 
         if (photoErr) throw photoErr;
 
         if (dbPhoto) {
-          const rawMeta = dbPhoto.meta || {};
-
-          // Normalisasi Snake Case & Camel Case dari Meta Payload DB
-          const parsedGifUrl =
-            rawMeta.gifUrl || rawMeta.gif_url || rawMeta.gif || "";
-          const parsedVideoUrl =
-            rawMeta.videoUrl || rawMeta.video_url || rawMeta.video || "";
-
-          let parsedRawPhotos: string[] = [];
-          if (Array.isArray(rawMeta.rawPhotos)) {
-            parsedRawPhotos = rawMeta.rawPhotos;
-          } else if (Array.isArray(rawMeta.raw_photos)) {
-            parsedRawPhotos = rawMeta.raw_photos;
-          } else if (Array.isArray(rawMeta.poses)) {
-            parsedRawPhotos = rawMeta.poses;
-          } else if (Array.isArray(rawMeta.photos)) {
-            parsedRawPhotos = rawMeta.photos;
+          // Parse string JSON jika Supabase mengembalikannya sebagai string
+          let rawMeta = dbPhoto.meta;
+          if (typeof rawMeta === "string") {
+            try {
+              rawMeta = JSON.parse(rawMeta);
+            } catch (e) {
+              rawMeta = {};
+            }
           }
+          rawMeta = rawMeta || {};
 
-          const photoRecord: PhotoRecord = {
+          setPhoto({
             id: dbPhoto.id,
             url: dbPhoto.url || "",
             type: dbPhoto.type || "photo",
@@ -95,24 +96,13 @@ export default function DownloadPage({ params }: PageProps) {
             likeCount: dbPhoto.like_count ?? 0,
             meta: {
               ...rawMeta,
-              gifUrl: parsedGifUrl,
-              videoUrl: parsedVideoUrl,
-              rawPhotos: parsedRawPhotos,
+              gifUrl: rawMeta.gifUrl || rawMeta.gif_url || "",
+              videoUrl: rawMeta.videoUrl || rawMeta.video_url || "",
+              rawPhotos: Array.isArray(rawMeta.rawPhotos)
+                ? rawMeta.rawPhotos
+                : [],
             },
-          };
-
-          setPhoto(photoRecord);
-
-          if (dbPhoto.event_id) {
-            const { data: dbEvent } = await supabase
-              .from("events")
-              .select("name")
-              .eq("id", dbPhoto.event_id)
-              .single();
-            if (dbEvent) {
-              setEvent({ name: dbEvent.name, location: "STUDIO" });
-            }
-          }
+          });
         }
       } catch (err) {
         console.error("Failed to load session:", err);
@@ -124,127 +114,55 @@ export default function DownloadPage({ params }: PageProps) {
     fetchSession();
   }, [id]);
 
-  // 2. Fetch Helper dengan Fallback Canvas Proxy untuk CORS
-  const fetchFileAsBlob = async (url: string): Promise<Blob | null> => {
-    if (!url) return null;
-    try {
-      const res = await fetch(url, { mode: "cors" });
-      if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
-      return await res.blob();
-    } catch (e) {
-      console.warn(
-        `Direct fetch failed (CORS/Network) for ${url}. Switching to fallback proxy...`,
-      );
+  // Guardrail UI: Jika Vercel build gagal membaca env, tampilkan layar peringatan
+  if (!isEnvValid) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-red-400 p-6 font-mono flex flex-col items-center justify-center text-center">
+        <div className="border border-red-800 bg-red-950/40 p-6 rounded-lg max-w-md w-full">
+          <h2 className="text-xl font-bold mb-2">Build Environment Missing</h2>
+          <p className="text-xs text-slate-300 mb-4">
+            Variabel{" "}
+            <code className="text-lime-400 bg-slate-900 px-1">
+              VITE_SUPABASE_URL
+            </code>{" "}
+            atau{" "}
+            <code className="text-lime-400 bg-slate-900 px-1">
+              VITE_SUPABASE_ANON_KEY
+            </code>{" "}
+            belum terinjeksi saat build time.
+          </p>
+          <div className="text-left bg-slate-900 p-3 rounded text-xs text-slate-400 space-y-1">
+            <p className="font-bold text-white">Langkah Perbaikan:</p>
+            <p>1. Buka Vercel -&gt; Settings -&gt; Environment Variables</p>
+            <p>2. Pastikan nilai variabel terisi (tanpa spasi tambahan)</p>
+            <p>3. Pilih Deployments -&gt; Redeploy</p>
+            <p>4. Hilangkan centang pada "Use existing Build Cache"</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-      // Fallback khusus file Gambar via Canvas
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        const bypassUrl = url.includes("?")
-          ? `${url}&cb=${Date.now()}`
-          : `${url}?cb=${Date.now()}`;
-
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext("2d");
-          ctx?.drawImage(img, 0, 0);
-          canvas.toBlob((blob) => resolve(blob), "image/png");
-        };
-
-        img.onerror = () => {
-          console.error(`Failed to fetch file as blob: ${url}`);
-          resolve(null);
-        };
-
-        img.src = bypassUrl;
-      });
-    }
-  };
-
-  // 3. Eksekusi Kompresi ZIP Seluruh Asset
   const handleDownloadAllZip = async () => {
     if (!photo) return;
-
     setIsDownloading(true);
     setZipProgress({ percent: 10, status: "Mempersiapkan antrean file..." });
 
     try {
       const zip = new JSZip();
-      const tasks: { url: string; zipPath: string }[] = [];
-
-      // A. Photostrip Output Utama
       if (photo.url) {
-        tasks.push({ url: photo.url, zipPath: `Photostrip_${photo.id}.png` });
+        const res = await fetch(photo.url);
+        const blob = await res.blob();
+        zip.file(`Photostrip_${photo.id}.png`, blob);
       }
 
-      // B. GIF
-      if (photo.meta.gifUrl) {
-        tasks.push({
-          url: photo.meta.gifUrl,
-          zipPath: `Animation_${photo.id}.gif`,
-        });
-      }
-
-      // C. Video
-      if (photo.meta.videoUrl) {
-        tasks.push({
-          url: photo.meta.videoUrl,
-          zipPath: `LiveVideo_${photo.id}.mp4`,
-        });
-      }
-
-      // D. Raw Poses / Foto Mentahan
-      if (photo.meta.rawPhotos && photo.meta.rawPhotos.length > 0) {
-        photo.meta.rawPhotos.forEach((rawUrl, index) => {
-          if (rawUrl && typeof rawUrl === "string") {
-            const cleanUrl = rawUrl.split("?")[0];
-            const ext =
-              cleanUrl.substring(cleanUrl.lastIndexOf(".") + 1) || "jpg";
-            tasks.push({
-              url: rawUrl,
-              zipPath: `raw_poses/Pose_${index + 1}.${ext}`,
-            });
-          }
-        });
-      }
-
-      if (tasks.length === 0) {
-        alert("Tidak ada asset media yang siap diunduh.");
-        setIsDownloading(false);
-        return;
-      }
-
-      let completed = 0;
-      const total = tasks.length;
-
-      // Parallel Fetch All Items
-      await Promise.all(
-        tasks.map(async (task) => {
-          const blob = await fetchFileAsBlob(task.url);
-          if (blob && blob.size > 0) {
-            zip.file(task.zipPath, blob);
-          } else {
-            console.warn(`Asset diabaikan karena gagal diunduh: ${task.url}`);
-          }
-          completed++;
-          setZipProgress({
-            percent: Math.round(10 + (completed / total) * 75),
-            status: `Mengunduh file (${completed}/${total})...`,
-          });
-        }),
-      );
-
-      setZipProgress({ percent: 90, status: "Membuat file ZIP..." });
-
+      setZipProgress({ percent: 80, status: "Membuat file ZIP..." });
       const zipBlob = await zip.generateAsync({ type: "blob" });
 
-      // Trigger Browser Download
       const blobUrl = URL.createObjectURL(zipBlob);
       const link = document.createElement("a");
       link.href = blobUrl;
-      link.download = `${event.name.replace(/\s+/g, "_")}_${photo.id}.zip`;
+      link.download = `${event.name}_${photo.id}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -253,10 +171,7 @@ export default function DownloadPage({ params }: PageProps) {
       setZipProgress({ percent: 100, status: "Selesai!" });
       setTimeout(() => setIsDownloading(false), 1500);
     } catch (err) {
-      console.error("ZIP Generation Failure:", err);
-      alert(
-        "Gagal mengompresi file ZIP. Periksa jaringan atau CORS bucket Anda.",
-      );
+      console.error("ZIP Error:", err);
       setIsDownloading(false);
     }
   };
@@ -269,22 +184,28 @@ export default function DownloadPage({ params }: PageProps) {
     );
   }
 
+  if (!photo && !loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-900 text-slate-400 font-mono">
+        Sesi foto tidak ditemukan atau URL tidak valid.
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-between p-6 font-mono">
-      {/* Header Info */}
       <header className="flex justify-between items-center border-b border-slate-800 pb-4">
         <div>
           <h1 className="text-xl font-bold tracking-wider">{event.name}</h1>
-          <p className="text-xs text-slate-400">ID: {photo?.id}</p>
+          <p className="text-xs text-slate-400">ID: {photo.id}</p>
         </div>
         <span className="px-3 py-1 bg-green-500/20 text-green-400 border border-green-500/30 text-xs rounded-full">
           READY
         </span>
       </header>
 
-      {/* Main Preview Container */}
       <main className="flex-1 flex flex-col items-center justify-center my-8">
-        {photo?.url ? (
+        {photo.url ? (
           <div className="relative max-w-sm w-full border-2 border-slate-700 bg-slate-900 p-2 rounded-lg shadow-2xl">
             <img
               src={photo.url}
@@ -297,7 +218,6 @@ export default function DownloadPage({ params }: PageProps) {
         )}
       </main>
 
-      {/* Control Footer */}
       <footer className="w-full max-w-md mx-auto space-y-4">
         {isDownloading && (
           <div className="bg-slate-900 border border-slate-800 p-4 rounded-lg space-y-2">
