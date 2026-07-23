@@ -305,8 +305,8 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
         {loading ? (
           /* Skeleton Loader Responsive */
           <div className="space-y-6 sm:space-y-8 animate-pulse">
-            <div className="w-full h-80 sm:h-[480px] bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl" />
-            <div className="w-full h-48 sm:h-[220px] bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl" />
+            <div className="w-full h-80 sm:h-[480px] bg-white/5 border border-white/10" />
+            <div className="w-full h-48 sm:h-[220px] bg-white/5 border border-white/10 " />
           </div>
         ) : photo ? (
           /* Valid Session View */
@@ -317,7 +317,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
           >
             {/* 1. Large Photo Strip Preview */}
             {photo.url && (
-              <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col items-center">
+              <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl flex flex-col items-center">
                 <div className="relative w-full max-w-[280px] xs:max-w-[320px] sm:max-w-sm rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl border border-white/30 bg-neutral-900 group">
                   <img
                     src={photo.url}
@@ -337,7 +337,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
 
             {/* 2. GIF Preview */}
             {photo.meta?.gifUrl && (
-              <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl space-y-3 sm:space-y-4">
+              <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl space-y-3 sm:space-y-4">
                 <div className="flex items-center gap-2 text-[#bcff00] font-bold text-xs sm:text-sm tracking-wider uppercase font-mono">
                   <Film className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span>Animated GIF</span>
@@ -354,7 +354,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
 
             {/* 3. Behind The Scene Video Preview */}
             {photo.meta?.videoUrl && (
-              <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl space-y-3 sm:space-y-4">
+              <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl space-y-3 sm:space-y-4">
                 <div className="flex items-center gap-2 text-[#bcff00] font-bold text-xs sm:text-sm tracking-wider uppercase font-mono">
                   <Video className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span>Behind The Scenes Video</span>
@@ -372,7 +372,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
 
             {/* 4. Photo Gallery Grid */}
             {photo.meta?.rawPhotos && photo.meta.rawPhotos.length > 0 && (
-              <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl space-y-3 sm:space-y-4">
+              <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl space-y-3 sm:space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-[#bcff00] font-bold text-xs sm:text-sm tracking-wider uppercase font-mono">
                     <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -409,7 +409,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
             )}
 
             {/* 5. Download Action Center */}
-            <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl space-y-3 sm:space-y-5">
+            <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl space-y-3 sm:space-y-5">
               {/* ZIP Compression Progress */}
               <AnimatePresence>
                 {isDownloading && (
@@ -506,7 +506,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white/10 border border-white/20 backdrop-blur-xl p-6 sm:p-10 rounded-2xl sm:rounded-3xl text-center max-w-md mx-auto space-y-4 shadow-2xl"
+            className="bg-white/10 border border-white/20 backdrop-blur-xl p-6 sm:p-10 text-center max-w-md mx-auto space-y-4 shadow-2xl"
           >
             <div className="w-12 h-12 sm:w-16 sm:h-16 bg-red-500/20 border border-red-500/40 text-red-400 rounded-full flex items-center justify-center mx-auto">
               <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8" />
@@ -539,7 +539,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative max-w-2xl sm:max-w-3xl max-h-[85vh] bg-white/10 border border-white/20 backdrop-blur-2xl rounded-2xl sm:rounded-3xl overflow-hidden p-2 sm:p-3 shadow-2xl flex flex-col items-center"
+              className="relative max-w-2xl sm:max-w-3xl max-h-[85vh] bg-white/10 border border-white/20 backdrop-blur-2xl overflow-hidden p-2 sm:p-3 shadow-2xl flex flex-col items-center"
             >
               <button
                 onClick={() => setSelectedImage(null)}
