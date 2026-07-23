@@ -318,11 +318,11 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
             {/* 1. Large Photo Strip Preview */}
             {photo.url && (
               <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl flex flex-col items-center">
-                <div className="relative w-full max-w-[280px] xs:max-w-[320px] sm:max-w-sm rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl border border-white/30 bg-neutral-900 group">
+                <div className="relative w-full max-w-[280px] xs:max-w-[320px] sm:max-w-sm overflow-hidden shadow-2xl border border-white/30 bg-neutral-900 group">
                   <img
                     src={photo.url}
                     alt="Photostrip Preview"
-                    className="w-full h-auto object-contain rounded-xl sm:rounded-2xl transition-transform duration-500 group-hover:scale-[1.02]"
+                    className="w-full h-auto object-contain transition-transform duration-500 group-hover:scale-[1.02]"
                   />
                   <button
                     onClick={() => setSelectedImage(photo.url)}
@@ -342,11 +342,11 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
                   <Film className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span>Animated GIF</span>
                 </div>
-                <div className="relative w-full max-w-[280px] xs:max-w-[320px] sm:max-w-sm mx-auto rounded-xl sm:rounded-2xl overflow-hidden border border-white/20 shadow-xl bg-black">
+                <div className="relative w-full max-w-[280px] xs:max-w-[320px] sm:max-w-sm mx-auto overflow-hidden border border-white/20 shadow-xl bg-black">
                   <img
                     src={photo.meta.gifUrl}
                     alt="Animated GIF Preview"
-                    className="w-full h-auto object-contain rounded-xl sm:rounded-2xl"
+                    className="w-full h-auto object-contain"
                   />
                 </div>
               </section>
@@ -359,12 +359,12 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
                   <Video className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span>Behind The Scenes Video</span>
                 </div>
-                <div className="relative w-full max-w-md mx-auto rounded-xl sm:rounded-2xl overflow-hidden border border-white/20 shadow-xl bg-black">
+                <div className="relative w-full max-w-md mx-auto overflow-hidden border border-white/20 shadow-xl bg-black">
                   <video
                     src={photo.meta.videoUrl}
                     controls
                     playsInline
-                    className="w-full h-auto rounded-xl sm:rounded-2xl"
+                    className="w-full h-auto"
                   />
                 </div>
               </section>
@@ -389,7 +389,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
                       key={idx}
                       whileHover={{ scale: 1.03 }}
                       onClick={() => setSelectedImage(imgUrl)}
-                      className="group relative aspect-[3/4] bg-neutral-900 rounded-xl sm:rounded-2xl overflow-hidden border border-white/20 cursor-pointer shadow-lg"
+                      className="group relative aspect-[3/4] bg-neutral-900 overflow-hidden border border-white/20 cursor-pointer shadow-lg"
                     >
                       <img
                         src={imgUrl}
@@ -417,7 +417,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="bg-black/40 border border-white/20 p-3 sm:p-4 rounded-xl sm:rounded-2xl space-y-2 overflow-hidden"
+                    className="bg-black/40 border border-white/20 p-3 sm:p-4 space-y-2 overflow-hidden"
                   >
                     <div className="flex justify-between text-[11px] sm:text-xs font-semibold">
                       <span className="flex items-center gap-2 truncate">
@@ -551,7 +551,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
               <img
                 src={selectedImage}
                 alt="Enlarged view"
-                className="max-h-[80vh] w-auto max-w-full object-contain rounded-xl sm:rounded-2xl"
+                className="max-h-[80vh] w-auto max-w-full object-contain"
               />
             </motion.div>
           </motion.div>
