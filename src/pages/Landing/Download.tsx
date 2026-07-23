@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import JSZip from "jszip";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,6 +14,7 @@ import {
   Eye,
   X,
   Camera,
+  Clock,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -31,6 +32,7 @@ interface PhotoMeta {
   gifUrl?: string;
   videoUrl?: string;
   rawPhotos?: string[];
+  btsDuration?: number; // Durasi BTS dalam detik (Setting)
   [key: string]: any;
 }
 
@@ -62,6 +64,9 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
   // State Lightbox Modal
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
+  // Ref untuk mengontrol durasi BTS Video secara presisi
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
   useEffect(() => {
     if (!isEnvValid || !activeId) {
       setLoading(false);
@@ -92,6 +97,18 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
           }
           rawMeta = rawMeta || {};
 
+          // DEDUPLIKASI PHOTO GALLERY: Hilangkan duplikat URL dan hilangkan URL Photostrip utama jika masuk ke raw
+          const rawPhotosList: string[] = Array.isArray(rawMeta.rawPhotos)
+            ? rawMeta.rawPhotos
+            : Array.isArray(rawMeta.raw_photos)
+            ? rawMeta.raw_photos
+            : [];
+
+          // Gunakan Set untuk hilangkan URL persis sama, lalu hilangkan yang sama dengan Photostrip utama
+          const uniquePhotos = Array.from(new Set(rawPhotosList)).filter(
+            (imgUrl) => imgUrl && imgUrl !== dbPhoto.url
+          );
+
           setPhoto({
             id: dbPhoto.id,
             url: dbPhoto.url || "",
@@ -105,9 +122,8 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
               ...rawMeta,
               gifUrl: rawMeta.gifUrl || rawMeta.gif_url || "",
               videoUrl: rawMeta.videoUrl || rawMeta.video_url || "",
-              rawPhotos: Array.isArray(rawMeta.rawPhotos)
-                ? rawMeta.rawPhotos
-                : [],
+              rawPhotos: uniquePhotos,
+              btsDuration: Number(rawMeta.btsDuration || rawMeta.bts_duration || 0),
             },
           });
         } else {
@@ -123,6 +139,17 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
 
     fetchSession();
   }, [activeId]);
+
+  // BTS Duration Enforcer Guardrail
+  const handleVideoTimeUpdate = () => {
+    if (!videoRef.current || !photo?.meta?.btsDuration) return;
+
+    const maxDuration = photo.meta.btsDuration; // Durasi dalam detik dari setting
+    if (maxDuration > 0 && videoRef.current.currentTime >= maxDuration) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0; // Reset kembali ke awal jika melebihi setting
+    }
+  };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,7 +212,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
         setZipProgress({ percent: step, status: "Mengompres BTS Video..." });
       }
 
-      // 4. Raw Photos
+      // 4. Unique Raw Photos
       if (photo.meta?.rawPhotos && photo.meta.rawPhotos.length > 0) {
         const rawFolder = zip.folder("raw_photos");
         for (let i = 0; i < photo.meta.rawPhotos.length; i++) {
@@ -244,7 +271,6 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
         }}
       />
 
-      {/* Responsive Container */}
       <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-14 relative z-10 space-y-8 sm:space-y-12">
         {/* Header & Search */}
         <header className="text-center space-y-4 sm:space-y-6">
@@ -274,7 +300,6 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
             </p>
           </motion.div>
 
-          {/* Search Bar Mobile-First */}
           <motion.form
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -303,13 +328,11 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
 
         {/* Content Body */}
         {loading ? (
-          /* Skeleton Loader Responsive */
           <div className="space-y-6 sm:space-y-8 animate-pulse">
             <div className="w-full h-80 sm:h-[480px] bg-white/5 border border-white/10" />
-            <div className="w-full h-48 sm:h-[220px] bg-white/5 border border-white/10 " />
+            <div className="w-full h-48 sm:h-[220px] bg-white/5 border border-white/10" />
           </div>
         ) : photo ? (
-          /* Valid Session View */
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -335,7 +358,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
               </section>
             )}
 
-            {/* 2. GIF Preview */}
+            {/* 2. Animated GIF */}
             {photo.meta?.gifUrl && (
               <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl space-y-3 sm:space-y-4">
                 <div className="flex items-center gap-2 text-[#bcff00] font-bold text-xs sm:text-sm tracking-wider uppercase font-mono">
@@ -352,16 +375,26 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
               </section>
             )}
 
-            {/* 3. Behind The Scene Video Preview */}
+            {/* 3. Behind The Scene Video with Strict Duration Setting */}
             {photo.meta?.videoUrl && (
               <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl space-y-3 sm:space-y-4">
-                <div className="flex items-center gap-2 text-[#bcff00] font-bold text-xs sm:text-sm tracking-wider uppercase font-mono">
-                  <Video className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span>Behind The Scenes Video</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-[#bcff00] font-bold text-xs sm:text-sm tracking-wider uppercase font-mono">
+                    <Video className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span>Behind The Scenes Video</span>
+                  </div>
+                  {Boolean(photo.meta.btsDuration) && (
+                    <span className="flex items-center gap-1 text-[10px] sm:text-xs text-[#bcff00] font-mono bg-black/40 px-2.5 py-1 rounded-full border border-white/10">
+                      <Clock className="w-3 h-3" />
+                      {photo.meta.btsDuration}s Max
+                    </span>
+                  )}
                 </div>
                 <div className="relative w-full max-w-md mx-auto overflow-hidden border border-white/20 shadow-xl bg-black">
                   <video
+                    ref={videoRef}
                     src={photo.meta.videoUrl}
+                    onTimeUpdate={handleVideoTimeUpdate}
                     controls
                     playsInline
                     className="w-full h-auto"
@@ -370,7 +403,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
               </section>
             )}
 
-            {/* 4. Photo Gallery Grid */}
+            {/* 4. Deduplicated Photo Gallery Grid */}
             {photo.meta?.rawPhotos && photo.meta.rawPhotos.length > 0 && (
               <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl space-y-3 sm:space-y-4">
                 <div className="flex items-center justify-between">
@@ -382,11 +415,10 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
                     {photo.meta.rawPhotos.length} Items
                   </span>
                 </div>
-                {/* Responsive Grid Adaptability */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-4">
                   {photo.meta.rawPhotos.map((imgUrl, idx) => (
                     <motion.div
-                      key={idx}
+                      key={`${imgUrl}-${idx}`}
                       whileHover={{ scale: 1.03 }}
                       onClick={() => setSelectedImage(imgUrl)}
                       className="group relative aspect-[3/4] bg-neutral-900 overflow-hidden border border-white/20 cursor-pointer shadow-lg"
@@ -410,7 +442,6 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
 
             {/* 5. Download Action Center */}
             <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl space-y-3 sm:space-y-5">
-              {/* ZIP Compression Progress */}
               <AnimatePresence>
                 {isDownloading && (
                   <motion.div
@@ -438,7 +469,6 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
                 )}
               </AnimatePresence>
 
-              {/* Primary ZIP Button */}
               <button
                 onClick={handleDownloadAllZip}
                 disabled={isDownloading}
@@ -452,7 +482,6 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
                 <span>Download Everything (.zip)</span>
               </button>
 
-              {/* Secondary Buttons Responsive Flex/Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 pt-1">
                 {photo.url && (
                   <button
@@ -502,7 +531,6 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
             </section>
           </motion.div>
         ) : (
-          /* Error Card Responsive */
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
