@@ -17,6 +17,8 @@ import {
   Clock,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import { getCanvasFilterString } from "../../layouts/BoothLayout";
+import { renderMedia } from "../../utils/render";
 
 // --- SAFE ENVIRONMENT READ ---
 const url = import.meta.env.VITE_SUPABASE_URL;
@@ -31,8 +33,13 @@ const isEnvValid = Boolean(
 interface PhotoMeta {
   gifUrl?: string;
   videoUrl?: string;
+  videoUrls?: string[];
   rawPhotos?: string[];
-  btsDuration?: number; // Durasi BTS dalam detik (Setting)
+  btsDuration?: number;
+  frameFilters?: string[];
+  mirror?: boolean;
+  zoom?: number;
+  template?: any;
   [key: string]: any;
 }
 
@@ -48,6 +55,107 @@ interface PhotoRecord {
   meta: PhotoMeta;
 }
 
+// --- BTS SLOT COMPONENT (EQUAL TO BOOTH PRINT) ---
+interface BtsSlotProps {
+  videoUrl: string;
+  imageUrl: string;
+  style: React.CSSProperties;
+  borderRadius?: number;
+  mirror: boolean;
+  zoom: number;
+  filterId: string;
+}
+
+const BtsSlot = ({
+  videoUrl,
+  imageUrl,
+  style,
+  borderRadius = 0,
+  mirror,
+  zoom,
+  filterId,
+}: BtsSlotProps) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const updateSize = () => {
+      canvas.width = canvas.clientWidth || 400;
+      canvas.height = canvas.clientHeight || 400;
+    };
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let animationFrameId: number;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let videoElement: HTMLVideoElement | null = null;
+    if (videoUrl) {
+      videoElement = document.createElement("video");
+      videoElement.src = videoUrl;
+      videoElement.muted = true;
+      videoElement.playsInline = true;
+      videoElement.loop = false;
+      videoElement
+        .play()
+        .catch((err) => console.warn("BTS Video playback interrupted:", err));
+    }
+
+    const renderLoop = () => {
+      if (!active) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.filter = getCanvasFilterString(filterId);
+
+      if (videoElement && videoElement.readyState >= 2) {
+        renderMedia({
+          ctx,
+          source: videoElement,
+          x: 0,
+          y: 0,
+          width: canvas.width,
+          height: canvas.height,
+          objectFit: "cover",
+          mirror,
+          zoom,
+        });
+      }
+
+      ctx.filter = "none";
+      animationFrameId = requestAnimationFrame(renderLoop);
+    };
+
+    renderLoop();
+
+    return () => {
+      active = false;
+      cancelAnimationFrame(animationFrameId);
+      if (videoElement) {
+        videoElement.pause();
+        videoElement.src = "";
+        videoElement.load();
+      }
+    };
+  }, [videoUrl, mirror, zoom, filterId]);
+
+  return (
+    <div
+      className="absolute overflow-hidden"
+      style={{ ...style, borderRadius: `${borderRadius}px` }}
+    >
+      <canvas ref={canvasRef} className="w-full h-full object-cover" />
+    </div>
+  );
+};
+
 export default function DownloadPage({ id: propId }: { id?: string }) {
   const params = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -61,11 +169,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [zipProgress, setZipProgress] = useState({ percent: 0, status: "" });
 
-  // State Lightbox Modal
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-
-  // Ref untuk mengontrol durasi BTS Video secara presisi
-  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     if (!isEnvValid || !activeId) {
@@ -97,16 +201,27 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
           }
           rawMeta = rawMeta || {};
 
-          // DEDUPLIKASI PHOTO GALLERY: Hilangkan duplikat URL dan hilangkan URL Photostrip utama jika masuk ke raw
           const rawPhotosList: string[] = Array.isArray(rawMeta.rawPhotos)
             ? rawMeta.rawPhotos
             : Array.isArray(rawMeta.raw_photos)
-            ? rawMeta.raw_photos
-            : [];
+              ? rawMeta.raw_photos
+              : [];
 
-          // Gunakan Set untuk hilangkan URL persis sama, lalu hilangkan yang sama dengan Photostrip utama
+          // Deduplikasi URL yang persis sama
           const uniquePhotos = Array.from(new Set(rawPhotosList)).filter(
-            (imgUrl) => imgUrl && imgUrl !== dbPhoto.url
+            (imgUrl) => imgUrl && imgUrl !== dbPhoto.url,
+          );
+
+          // Batasi jumlah foto sesuai jumlah slot template (jika tersedia)
+          // untuk mencegah kelebihan foto akibat retake pada data lama
+          const rawMetaTemplate = rawMeta.template;
+          const photoSlotCount = rawMetaTemplate?.elements
+            ? rawMetaTemplate.elements.filter((el: any) => el.type === "photo")
+                .length
+            : uniquePhotos.length;
+          const limitedPhotos = uniquePhotos.slice(
+            0,
+            Math.min(photoSlotCount, uniquePhotos.length),
           );
 
           setPhoto({
@@ -122,8 +237,14 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
               ...rawMeta,
               gifUrl: rawMeta.gifUrl || rawMeta.gif_url || "",
               videoUrl: rawMeta.videoUrl || rawMeta.video_url || "",
-              rawPhotos: uniquePhotos,
-              btsDuration: Number(rawMeta.btsDuration || rawMeta.bts_duration || 0),
+              videoUrls: rawMeta.videoUrls || rawMeta.video_urls || [],
+              rawPhotos: limitedPhotos,
+              btsDuration: Number(
+                rawMeta.btsDuration || rawMeta.bts_duration || 0,
+              ),
+              frameFilters: rawMeta.frameFilters || [],
+              mirror: Boolean(rawMeta.mirror),
+              zoom: Number(rawMeta.zoom || 1),
             },
           });
         } else {
@@ -139,17 +260,6 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
 
     fetchSession();
   }, [activeId]);
-
-  // BTS Duration Enforcer Guardrail
-  const handleVideoTimeUpdate = () => {
-    if (!videoRef.current || !photo?.meta?.btsDuration) return;
-
-    const maxDuration = photo.meta.btsDuration; // Durasi dalam detik dari setting
-    if (maxDuration > 0 && videoRef.current.currentTime >= maxDuration) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0; // Reset kembali ke awal jika melebihi setting
-    }
-  };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,7 +295,6 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
       const zip = new JSZip();
       let step = 15;
 
-      // 1. Photo Strip
       if (photo.url) {
         const res = await fetch(photo.url);
         const blob = await res.blob();
@@ -194,7 +303,6 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
         setZipProgress({ percent: step, status: "Mengompres Photostrip..." });
       }
 
-      // 2. Animated GIF
       if (photo.meta?.gifUrl) {
         const res = await fetch(photo.meta.gifUrl);
         const blob = await res.blob();
@@ -203,7 +311,6 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
         setZipProgress({ percent: step, status: "Mengompres Animated GIF..." });
       }
 
-      // 3. BTS Video
       if (photo.meta?.videoUrl) {
         const res = await fetch(photo.meta.videoUrl);
         const blob = await res.blob();
@@ -212,7 +319,6 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
         setZipProgress({ percent: step, status: "Mengompres BTS Video..." });
       }
 
-      // 4. Unique Raw Photos
       if (photo.meta?.rawPhotos && photo.meta.rawPhotos.length > 0) {
         const rawFolder = zip.folder("raw_photos");
         for (let i = 0; i < photo.meta.rawPhotos.length; i++) {
@@ -243,7 +349,6 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
     }
   };
 
-  // Environment Guardrail View
   if (!isEnvValid) {
     return (
       <div className="min-h-screen bg-[#004ce5] text-white p-4 sm:p-6 flex flex-col items-center justify-center text-center font-sans">
@@ -260,9 +365,18 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
     );
   }
 
+  // Extract Template Data untuk BTS Slot Layout
+  const template = photo?.meta?.template;
+  const elements = template ? [...(template.elements || [])] : [];
+  const photoPositions = elements
+    .filter((el: any) => el.type === "photo" && !el.hidden)
+    .sort((a: any, b: any) => a.y - b.y || a.x - b.x);
+
+  const canvasWidth = template?.canvasWidth || 1200;
+  const canvasHeight = template?.canvasHeight || 800;
+
   return (
     <div className="min-h-screen bg-[#004ce5] text-white font-sans selection:bg-[#bcff00] selection:text-black relative overflow-x-hidden">
-      {/* Blueprint Grid Background Pattern */}
       <div
         className="absolute inset-0 pointer-events-none opacity-[0.15] z-0"
         style={{
@@ -272,7 +386,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
       />
 
       <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-14 relative z-10 space-y-8 sm:space-y-12">
-        {/* Header & Search */}
+        {/* Header */}
         <header className="text-center space-y-4 sm:space-y-6">
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -326,7 +440,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
           </motion.form>
         </header>
 
-        {/* Content Body */}
+        {/* Main Body */}
         {loading ? (
           <div className="space-y-6 sm:space-y-8 animate-pulse">
             <div className="w-full h-80 sm:h-[480px] bg-white/5 border border-white/10" />
@@ -338,7 +452,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6 sm:space-y-10"
           >
-            {/* 1. Large Photo Strip Preview */}
+            {/* 1. Photostrip Preview */}
             {photo.url && (
               <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl flex flex-col items-center">
                 <div className="relative w-full max-w-[280px] xs:max-w-[320px] sm:max-w-sm overflow-hidden shadow-2xl border border-white/30 bg-neutral-900 group">
@@ -375,13 +489,14 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
               </section>
             )}
 
-            {/* 3. Behind The Scene Video with Strict Duration Setting */}
-            {photo.meta?.videoUrl && (
+            {/* 3. Behind The Scene (IDENTICAL TO BOOTH PRINT LAYOUT) */}
+            {(photo.meta?.videoUrl ||
+              (photo.meta?.videoUrls && photo.meta.videoUrls.length > 0)) && (
               <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl space-y-3 sm:space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-[#bcff00] font-bold text-xs sm:text-sm tracking-wider uppercase font-mono">
-                    <Video className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span>Behind The Scenes Video</span>
+                    <Video className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 animate-pulse" />
+                    <span>Behind The Scenes Layout</span>
                   </div>
                   {Boolean(photo.meta.btsDuration) && (
                     <span className="flex items-center gap-1 text-[10px] sm:text-xs text-[#bcff00] font-mono bg-black/40 px-2.5 py-1 rounded-full border border-white/10">
@@ -390,20 +505,96 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
                     </span>
                   )}
                 </div>
-                <div className="relative w-full max-w-md mx-auto overflow-hidden border border-white/20 shadow-xl bg-black">
-                  <video
-                    ref={videoRef}
-                    src={photo.meta.videoUrl}
-                    onTimeUpdate={handleVideoTimeUpdate}
-                    controls
-                    playsInline
-                    className="w-full h-auto"
-                  />
-                </div>
+
+                {/* BTS LAYOUT RENDERER */}
+                {template ? (
+                  <div
+                    className="w-full max-w-[360px] sm:max-w-[420px] mx-auto aspect-[3/4] relative shadow-2xl overflow-hidden rounded-xl border border-white/20"
+                    style={{
+                      backgroundColor: template?.themeColor || "#ffffff",
+                      backgroundImage: template?.backgroundImage
+                        ? `url(${template.backgroundImage})`
+                        : undefined,
+                      backgroundSize: "cover",
+                    }}
+                  >
+                    {elements.map((el: any) => {
+                      const style: React.CSSProperties = {
+                        position: "absolute",
+                        left: `${el.x}%`,
+                        top: `${el.y}%`,
+                        width: `${el.width}%`,
+                        height: `${el.height}%`,
+                        zIndex: el.zIndex || 10,
+                      };
+
+                      if (el.type === "photo") {
+                        const photoIdx = photoPositions.findIndex(
+                          (item: any) => item.id === el.id,
+                        );
+                        const imageUrl =
+                          photo.meta?.rawPhotos?.[photoIdx] || "";
+                        const videoUrl =
+                          photo.meta?.videoUrls?.[photoIdx] ||
+                          photo.meta?.videoUrl ||
+                          "";
+                        const filterId =
+                          photo.meta?.frameFilters?.[photoIdx] || "normal";
+
+                        return (
+                          <BtsSlot
+                            key={el.id}
+                            videoUrl={videoUrl}
+                            imageUrl={imageUrl}
+                            style={style}
+                            borderRadius={el.borderRadius || 0}
+                            mirror={photo.meta?.mirror || false}
+                            zoom={photo.meta?.zoom || 1}
+                            filterId={filterId}
+                          />
+                        );
+                      }
+
+                      if (el.type === "logo" || el.type === "decor") {
+                        return (
+                          <img
+                            key={el.id}
+                            src={el.textValue}
+                            alt={el.name}
+                            style={style}
+                            className="object-contain pointer-events-none"
+                          />
+                        );
+                      }
+                      return null;
+                    })}
+
+                    {template?.framePng && (
+                      <img
+                        src={template.framePng}
+                        alt="Overlay"
+                        className="absolute inset-0 w-full h-full object-fill pointer-events-none z-30"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  /* Fallback Video Player Standard Jika Metadata Template Absen */
+                  <div className="relative w-full max-w-md mx-auto overflow-hidden border border-white/20 shadow-xl bg-black rounded-xl">
+                    <video
+                      src={photo.meta.videoUrl}
+                      controls
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-full h-auto"
+                    />
+                  </div>
+                )}
               </section>
             )}
 
-            {/* 4. Deduplicated Photo Gallery Grid */}
+            {/* 4. Raw Photo Gallery */}
             {photo.meta?.rawPhotos && photo.meta.rawPhotos.length > 0 && (
               <section className="bg-white/10 border border-white/20 backdrop-blur-xl p-4 sm:p-8 shadow-2xl space-y-3 sm:space-y-4">
                 <div className="flex items-center justify-between">
@@ -552,7 +743,7 @@ export default function DownloadPage({ id: propId }: { id?: string }) {
         )}
       </div>
 
-      {/* Lightbox / Fullscreen Image Viewer Modal */}
+      {/* Lightbox */}
       <AnimatePresence>
         {selectedImage && (
           <motion.div

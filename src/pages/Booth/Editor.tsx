@@ -698,7 +698,7 @@ export default function BoothEditor() {
                 className="flex-[2] py-3 bg-[#bcff00] text-black text-[10px] font-['Outfit'] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-1 shadow-md cursor-pointer"
               >
                 <Check className="w-4 h-4 stroke-[3]" />
-                Proses Cetak ⚡
+                Proses Cetak
               </button>
             </div>
           </div>

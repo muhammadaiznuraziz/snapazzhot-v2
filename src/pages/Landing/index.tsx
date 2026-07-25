@@ -5,45 +5,47 @@ import { supabase } from "../../lib/supabaseClient";
 import {
   Camera,
   Image as ImageIcon,
-  LayoutGrid,
-  Printer,
   ArrowRight,
-  QrCode,
-  Sparkles,
-  Heart,
   Eye,
-  Calendar,
-  Award,
-  Layers,
-  Globe,
-  Download,
-  Maximize2,
-  Minimize2,
-  Smartphone,
-  Sparkle,
+  Heart,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import SocialCards from "../../components/ui/card-fan-carousel";
+import { motion } from "framer-motion";
 
-const FALLBACK_PHOTOS: Record<string, string[]> = {
-  "evt-wedding": [
-    "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1519225495810-7512c696505a?q=80&w=600&auto=format&fit=crop",
-  ],
-  "evt-graduation": [
-    "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1525921429573-0aa899981521?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1532649538693-f3a2ec1bf8bd?q=80&w=600&auto=format&fit=crop",
-  ],
-  "evt-corporate": [
-    "https://images.unsplash.com/photo-1511578314322-379afb476865?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=600&auto=format&fit=crop",
-  ],
+// Helper SVG Generator untuk variasi bentuk frame tanpa database/external fetch
+const generateDynamicShapeSVG = (type: "strip" | "polaroid" | "modern") => {
+  let svgContent = "";
+
+  if (type === "strip") {
+    svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450" fill="none">
+      <rect width="100%" height="100%" fill="#111827"/>
+      <rect x="20" y="20" width="260" height="110" rx="12" fill="#1f2937"/>
+      <circle cx="150" cy="75" r="25" fill="#bcff00" opacity="0.8"/>
+      <rect x="20" y="150" width="260" height="110" rx="12" fill="#1f2937"/>
+      <path d="M100 220 L150 170 L200 220" stroke="#004ce5" stroke-width="8" stroke-linecap="round"/>
+      <rect x="20" y="280" width="260" height="110" rx="12" fill="#1f2937"/>
+      <rect x="60" y="320" width="180" height="30" rx="6" fill="#374151"/>
+      <text x="150" y="425" text-anchor="middle" fill="#bcff00" font-family="monospace" font-size="12" font-weight="bold">CLASSIC 3-STRIP</text>
+    </svg>`;
+  } else if (type === "polaroid") {
+    svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="380" viewBox="0 0 300 380" fill="none">
+      <rect width="100%" height="100%" fill="#f8fafc" rx="16"/>
+      <rect x="20" y="20" width="260" height="260" rx="8" fill="#0f172a"/>
+      <circle cx="150" cy="150" r="60" fill="#38bdf8" opacity="0.3"/>
+      <path d="M110 180 Q150 110 190 180" stroke="#38bdf8" stroke-width="6" fill="none"/>
+      <text x="150" y="330" text-anchor="middle" fill="#0f172a" font-family="sans-serif" font-size="16" font-weight="800">POLAROID SQUARE</text>
+      <text x="150" y="352" text-anchor="middle" fill="#64748b" font-family="monospace" font-size="10">#SNAPAZZHOT-2026</text>
+    </svg>`;
+  } else {
+    svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400" fill="none">
+      <rect width="100%" height="100%" fill="#09090b"/>
+      <rect x="12" y="12" width="276" height="376" rx="16" fill="#18181b" stroke="#bcff00" stroke-width="2" stroke-dasharray="6 6"/>
+      <circle cx="150" cy="160" r="50" fill="#bcff00" opacity="0.2"/>
+      <path d="M120 250 L180 250 M150 220 L150 280" stroke="#bcff00" stroke-width="4" stroke-linecap="round"/>
+      <text x="150" y="340" text-anchor="middle" fill="#ffffff" font-family="monospace" font-size="14" font-weight="bold">MODERN 4:5 FRAME</text>
+    </svg>`;
+  }
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svgContent)}`;
 };
 
 const getIndividualPhotos = (photo: any) => {
@@ -60,174 +62,74 @@ const getIndividualPhotos = (photo: any) => {
     }));
   }
 
-  const eventId = photo.eventId || "evt-wedding";
-  const fallbacks =
-    FALLBACK_PHOTOS[eventId] || FALLBACK_PHOTOS["evt-corporate"];
-  const hash = photo.id
-    .split("")
-    .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-
-  return fallbacks.map((url: string, index: number) => {
-    const rotatedIndex = (index + hash) % fallbacks.length;
-    return {
-      id: `${photo.id}-raw-${index}`,
-      url: fallbacks[rotatedIndex],
+  // Fallback: use the photo URL from Supabase directly.
+  // Every photo stored in the database already has a public URL from Supabase Storage.
+  return [
+    {
+      id: `${photo.id}-raw-0`,
+      url: photo.url,
       parentPhoto: photo,
-      index: index,
-    };
-  });
-};
-
-const IndividualPhotoCard = ({
-  photo,
-  likedPhotos,
-  handleLike,
-  setSelectedPhoto,
-  events,
-}: any) => {
-  const [isImgLoaded, setIsImgLoaded] = useState(false);
-  const parent = photo.parentPhoto;
-  const isLiked = likedPhotos.includes(parent.id);
-  const matchingEvent = events.find((e: any) => e.id === parent.eventId);
-  const eventName = matchingEvent ? matchingEvent.name : "Photo Booth Session";
-  const formattedDate = new Date(parent.timestamp).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 30 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      whileHover={{ y: -8, scale: 1.02 }}
-      transition={{ duration: 0.3 }}
-      className="group relative bg-white/10 backdrop-blur-lg border border-white/20 rounded-3xl overflow-hidden shadow-2xl flex flex-col justify-between cursor-pointer"
-      onClick={() => setSelectedPhoto(photo)}
-    >
-      <div className="relative aspect-[3/4] bg-neutral-900/40 overflow-hidden flex items-center justify-center">
-        {!isImgLoaded && (
-          <div className="absolute inset-0 bg-white/5 animate-pulse flex items-center justify-center">
-            <Camera className="w-8 h-8 text-white/30 animate-pulse" />
-          </div>
-        )}
-
-        <img
-          src={photo.url}
-          alt={`${eventName} frame`}
-          loading="lazy"
-          onLoad={() => setIsImgLoaded(true)}
-          className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 ${isImgLoaded ? "opacity-100" : "opacity-0"}`}
-        />
-
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3 z-20">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedPhoto(photo);
-            }}
-            className="p-3 bg-white text-blue-600 rounded-full hover:scale-110 transition active:scale-95"
-          >
-            <Eye className="w-5 h-5" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleLike(parent.id, e);
-            }}
-            className={`p-3 rounded-full hover:scale-110 transition active:scale-95 ${isLiked ? "bg-red-500 text-white" : "bg-white text-gray-800"}`}
-          >
-            <Heart className={`w-5 h-5 ${isLiked ? "fill-current" : ""}`} />
-          </button>
-        </div>
-      </div>
-
-      <div className="p-4 bg-gradient-to-t from-black/80 to-black/20 text-white flex flex-col gap-1.5 border-t border-white/10">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-[#bcff00] overflow-hidden border border-white/30 flex items-center justify-center text-[10px] text-black font-bold">
-            {parent.username ? parent.username.slice(0, 2).toUpperCase() : "G"}
-          </div>
-          <span className="text-xs font-semibold tracking-wide text-white/90">
-            {parent.username || "Guest"}
-          </span>
-        </div>
-
-        <div className="flex justify-between items-end mt-1">
-          <div className="truncate pr-2 text-left">
-            <h4 className="text-sm font-bold truncate max-w-[160px]">
-              {eventName}
-            </h4>
-            <p className="text-[10px] text-white/60">{formattedDate}</p>
-          </div>
-          <div className="flex items-center gap-2.5 bg-black/40 px-2.5 py-1 rounded-full border border-white/10 text-xs flex-shrink-0">
-            <span className="flex items-center gap-1">
-              <Heart
-                className={`w-3.5 h-3.5 text-red-500 ${isLiked ? "fill-current" : ""}`}
-              />
-              <span className="font-mono text-[10px] font-bold">
-                {parent.likeCount || 0}
-              </span>
-            </span>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
+      index: 0,
+    },
+  ];
 };
 
 export default function LandingPage() {
-  const {
-    events = [],
-    photos = [],
-    fetchInitialData,
-    loading,
-  } = useApp() as any;
+  const { events = [], photos = [] } = useApp() as any;
   const navigate = useNavigate();
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [galleryFilter, setGalleryFilter] = useState<
-    "all" | "newest" | "popular" | "template" | "theme"
-  >("all");
-  const [selectedTemplate, setSelectedTemplate] = useState<string>("all");
-  const [selectedTheme, setSelectedTheme] = useState<string>("all");
-  const [visibleCount, setVisibleCount] = useState<number>(12);
+  const [galleryFilter] = useState<"all" | "newest" | "popular">("all");
   const [likedPhotos, setLikedPhotos] = useState<string[]>([]);
-  const [selectedPhoto, setSelectedPhoto] = useState<any | null>(null);
-  const [showFullStrip, setShowFullStrip] = useState<boolean>(false);
-
-  useEffect(() => {
-    const handleFullscreenChange = () =>
-      setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () =>
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement
-        .requestFullscreen()
-        .catch((err) => console.warn(err));
-    } else {
-      document.exitFullscreen();
-    }
-  };
+  const [, setSelectedPhoto] = useState<any | null>(null);
 
   const onStartKiosk = () => navigate("/booth");
   const onOpenGallery = () => navigate("/gallery");
 
-  const uniqueTemplates = useMemo(() => {
-    const publicPhotos = (photos || []).filter((p: any) => p.isPublic === true);
-    return Array.from(
-      new Set(publicPhotos.map((p: any) => p.templateName).filter(Boolean)),
-    ) as string[];
-  }, [photos]);
+  // Config tumpukan kartu dengan variasi bentuk visual (Strip, Polaroid, Modern 4:5)
+  const heroShapeCards = useMemo(
+    () => [
+      {
+        id: "card-strip",
+        title: "Photo Strip 2x6",
+        aspectRatio: "aspect-[1/2]",
+        rotation: "-14deg",
+        translationX: "-35px",
+        translationY: "10px",
+        zIndex: 10,
+        imgUrl: generateDynamicShapeSVG("strip"),
+        containerClass:
+          "bg-black/50 backdrop-blur-md border border-white/20 p-2 rounded-xl",
+      },
+      {
+        id: "card-polaroid",
+        title: "Polaroid Vintage",
+        aspectRatio: "aspect-[4/5]",
+        rotation: "-2deg",
+        translationX: "-5px",
+        translationY: "-15px",
+        zIndex: 20,
+        imgUrl: generateDynamicShapeSVG("polaroid"),
+        containerClass:
+          "bg-white text-black shadow-2xl p-3 rounded-2xl border border-white",
+      },
+      {
+        id: "card-modern",
+        title: "Modern Live Frame",
+        aspectRatio: "aspect-[3/4]",
+        rotation: "12deg",
+        translationX: "30px",
+        translationY: "5px",
+        zIndex: 30,
+        imgUrl: generateDynamicShapeSVG("modern"),
+        containerClass:
+          "bg-white/20 backdrop-blur-xl border-2 border-[#bcff00] p-2.5 rounded-3xl shadow-2xl",
+      },
+    ],
+    [],
+  );
 
   const filteredPhotos = useMemo(() => {
     let list = (photos || []).filter((p: any) => p.isPublic === true);
-
     if (galleryFilter === "newest") {
       list = [...list].sort(
         (a, b) =>
@@ -235,19 +137,9 @@ export default function LandingPage() {
       );
     } else if (galleryFilter === "popular") {
       list = [...list].sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0));
-    } else if (galleryFilter === "template" && selectedTemplate !== "all") {
-      list = list.filter((p: any) => p.templateName === selectedTemplate);
-    } else if (galleryFilter === "theme" && selectedTheme !== "all") {
-      list = list.filter((p: any) => {
-        const matchingEvent = (events || []).find(
-          (e: any) => e.id === p.eventId,
-        );
-        return matchingEvent?.layoutType === selectedTheme;
-      });
     }
-
     return list;
-  }, [photos, galleryFilter, selectedTemplate, selectedTheme, events]);
+  }, [photos, galleryFilter]);
 
   const individualPhotosList = useMemo(() => {
     const list: any[] = [];
@@ -258,71 +150,10 @@ export default function LandingPage() {
     return list;
   }, [filteredPhotos]);
 
-  const carouselCards = useMemo(() => {
-    const fallbackCards = [
-      {
-        imgUrl:
-          "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=400&h=700&fit=crop",
-        alt: "Demo 1",
-      },
-      {
-        imgUrl:
-          "https://images.unsplash.com/photo-1511765224389-37f0e77cf0eb?w=400&h=700&fit=crop",
-        alt: "Demo 2",
-      },
-      {
-        imgUrl:
-          "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=700&fit=crop",
-        alt: "Demo 3",
-      },
-    ];
-
-    const dbCards = (individualPhotosList || []).map((photo: any) => ({
-      imgUrl: photo.url,
-      alt: photo.parentPhoto?.username || "Guest",
-      onClick: () => {
-        setSelectedPhoto(photo);
-        setShowFullStrip(false);
-      },
-    }));
-
-    return dbCards.length > 0
-      ? dbCards
-      : fallbackCards.map((c, idx) => ({
-          ...c,
-          onClick: () => {
-            const mockPhoto = {
-              id: `demo-${idx}`,
-              url: c.imgUrl,
-              username: "Inspirasi Pose",
-              timestamp: new Date().toISOString(),
-              likeCount: 42 + idx,
-              isPublic: true,
-              templateName: "Retro Frame",
-              parentPhoto: {
-                id: `demo-parent-${idx}`,
-                url: c.imgUrl,
-                username: "Inspirasi Pose",
-                timestamp: new Date().toISOString(),
-                likeCount: 42 + idx,
-                templateName: "Retro Frame",
-              },
-            };
-            setSelectedPhoto(mockPhoto);
-            setShowFullStrip(false);
-          },
-        }));
-  }, [individualPhotosList]);
-
-  const visiblePhotos = useMemo(() => {
-    return individualPhotosList.slice(0, visibleCount);
-  }, [individualPhotosList, visibleCount]);
-
   const handleLike = async (photoId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (likedPhotos.includes(photoId)) return;
 
-    // Optimistic UI update - update local state immediately
     setLikedPhotos((prev) => [...prev, photoId]);
 
     try {
@@ -335,30 +166,15 @@ export default function LandingPage() {
       if (fetchErr) throw fetchErr;
 
       const currentLikes = photoData?.like_count || 0;
-      const { error: updateErr } = await supabase
+      await supabase
         .from("photos")
         .update({ like_count: currentLikes + 1 })
         .eq("id", photoId);
-
-      if (updateErr) throw updateErr;
     } catch (err) {
       console.warn("Failed to live-sync like event:", err);
-      // Rollback on failure
       setLikedPhotos((prev) => prev.filter((id) => id !== photoId));
     }
   };
-
-  useEffect(() => {
-    if (selectedPhoto) {
-      const parentId = selectedPhoto.parentPhoto?.id || selectedPhoto.id;
-      const updatedParent = (photos || []).find((p: any) => p.id === parentId);
-      if (updatedParent) {
-        setSelectedPhoto((prev: any) =>
-          prev ? { ...prev, parentPhoto: updatedParent } : null,
-        );
-      }
-    }
-  }, [photos, selectedPhoto]);
 
   return (
     <div className="min-h-screen bg-[#004ce5] text-white font-sans selection:bg-[#bcff00] selection:text-black relative overflow-hidden">
@@ -371,13 +187,12 @@ export default function LandingPage() {
         }}
       />
 
-      {/* Main Fluid Container */}
+      {/* Main Container */}
       <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 md:py-10 relative z-10 space-y-12 md:space-y-20 lg:space-y-28">
-        {/* 1. HERO SECTION */}
+        {/* HERO SECTION */}
         <section className="relative w-full">
-          {/* Responsive Grid System: Mobile (1 Col) -> Tablet (1 Col/Stacked optimized) -> Laptop/Desktop (2 Equal Flex Blocks via 12-Col) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-16 lg:gap-12 items-center">
-            {/* Left Content Column */}
+            {/* Left Column: CTA & Headline */}
             <motion.div
               initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
@@ -385,11 +200,8 @@ export default function LandingPage() {
               className="grid grid-cols-1 lg:col-span-7 space-y-6 md:space-y-8 text-left"
             >
               <div className="space-y-1 md:space-y-2">
-                <span className="block text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight italic text-[#bcff00] uppercase font-mono">
+                <h1 className="block text-2xl sm:text-4xl md:text-5xl lg:text-8xl font-extrabold tracking-tight italic text-[#bcff00] uppercase font-mono">
                   #SNAPAZZHOT
-                </span>
-                <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight leading-[0.9] text-white lowercase">
-                  snapazzhot
                 </h1>
               </div>
 
@@ -402,7 +214,6 @@ export default function LandingPage() {
                 , dan QR Code instan untuk mempercantik momen spesial Anda.
               </p>
 
-              {/* CTAs: Flex Wrap auto-adapts on mobile screens */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2">
                 <motion.button
                   onClick={onStartKiosk}
@@ -429,77 +240,103 @@ export default function LandingPage() {
               </div>
             </motion.div>
 
-            {/* Right Card Stack Column: Fluid Height allocation dynamically scaled per screen profile */}
+            {/* Right Column: Dynamic Shape Card Stack */}
             <motion.div
               initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
-              className="lg:col-span-5 relative w-full aspect-[4/5] sm:max-w-[400px] lg:max-w-none min-h-[380px] sm:min-h-[460px] md:min-h-[500px] lg:min-h-0 flex items-center justify-center mx-auto mt-6 sm:mt-10 lg:mt-0"
+              className="lg:col-span-5 relative w-full aspect-[4/5] sm:max-w-[400px] lg:max-w-none min-h-[400px] sm:min-h-[480px] md:min-h-[520px] lg:min-h-0 flex items-center justify-center mx-auto mt-6 sm:mt-10 lg:mt-0"
             >
-              {/* Arrow Indicator: Hidden on Mobile & Tablets to maintain neatness */}
-              <div className="absolute inset-0 pointer-events-none z-20 hidden lg:block">
-                <svg
-                  className="absolute top-[5%] left-[-10%] w-24 h-24 text-[#bcff00] animate-pulse"
-                  viewBox="0 0 100 100"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                >
-                  <path
-                    d="M10 50 C 40 20, 70 20, 80 40 C 85 50, 80 70, 60 75"
-                    strokeLinecap="round"
-                  />
-                  <path d="M55 65 L 60 75 L 50 82" strokeLinecap="round" />
-                </svg>
-              </div>
-
-              {/* Absolute Stack container wrapper */}
-              <div className="relative w-full aspect-[3/4] max-w-[280px] sm:max-w-[320px] md:max-w-[340px]">
-                {carouselCards.slice(0, 3).map((card, i) => {
-                  const rotation =
-                    i === 0 ? "-12deg" : i === 1 ? "-4deg" : "8deg";
-                  const translationX =
-                    i === 0 ? "-25px" : i === 1 ? "-5px" : "25px";
-                  const zIndex = i === 0 ? "10" : i === 1 ? "20" : "30";
-                  return (
-                    <motion.div
-                      key={i}
-                      className={`absolute inset-0 origin-bottom transform z-${zIndex}`}
-                      style={{ rotate: rotation, x: translationX }}
-                      whileHover={{ scale: 1.06, zIndex: 50, rotate: "0deg" }}
-                      transition={{
-                        type: "spring",
-                        stiffness: 300,
-                        damping: 20,
-                      }}
+              {/* Stack Container */}
+              <div className="relative w-full aspect-[3/4] max-w-[280px] sm:max-w-[320px] md:max-w-[350px] flex items-center justify-center">
+                {heroShapeCards.map((card) => (
+                  <motion.div
+                    key={card.id}
+                    className="absolute inset-x-0 mx-auto w-full max-w-[240px] sm:max-w-[270px] origin-center transform"
+                    style={{
+                      rotate: card.rotation,
+                      x: card.translationX,
+                      y: card.translationY,
+                      zIndex: card.zIndex,
+                    }}
+                    whileHover={{
+                      scale: 1.08,
+                      zIndex: 50,
+                      rotate: "0deg",
+                      y: -10,
+                    }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 280,
+                      damping: 18,
+                    }}
+                  >
+                    <div
+                      className={`w-full h-full ${card.containerClass} shadow-2xl transition-all duration-300`}
                     >
                       <div
-                        className={`w-full h-full rounded-2xl md:rounded-3xl overflow-hidden p-2.5 md:p-3 shadow-2xl flex flex-col justify-between ${i === 2 ? "bg-white/20 backdrop-blur-xl border-2 border-white/40" : "bg-white/10 backdrop-blur-md border border-white/20"}`}
+                        className={`w-full ${card.aspectRatio} overflow-hidden rounded-lg relative bg-neutral-950 flex items-center justify-center`}
                       >
-                        <div className="aspect-[4/5] bg-neutral-900 rounded-xl md:rounded-2xl overflow-hidden">
-                          <img
-                            src={card.imgUrl}
-                            className="w-full h-full object-cover"
-                            alt={card.alt}
-                            loading="eager"
-                          />
-                        </div>
-                        <div className="pt-2 text-white text-[9px] md:text-[10px] font-mono flex justify-between px-1">
-                          <span className="font-bold truncate max-w-[120px]">
-                            {card.alt}
-                          </span>
-                          <span className="text-[#bcff00] font-bold flex-shrink-0">
-                            LIVE SYNC
-                          </span>
-                        </div>
+                        <img
+                          src={card.imgUrl}
+                          className="w-full h-full object-cover select-none pointer-events-none"
+                          alt={card.title}
+                          loading="eager"
+                        />
                       </div>
-                    </motion.div>
-                  );
-                })}
+                      <div className="pt-2 text-[10px] font-mono flex justify-between items-center px-1">
+                        <span className="font-bold truncate opacity-90 tracking-wider uppercase">
+                          {card.title}
+                        </span>
+                        <span className="text-[#bcff00] bg-black/60 px-1.5 py-0.5 rounded font-bold text-[8px] flex-shrink-0">
+                          LIVE
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
             </motion.div>
           </div>
         </section>
+
+        {/* GALLERY GRID PREVIEW */}
+        {individualPhotosList.length > 0 && (
+          <section className="space-y-6">
+            <h3 className="text-xl md:text-2xl font-bold tracking-tight uppercase font-mono text-[#bcff00]">
+              Hasil Cetak Sesi Terakhir
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {individualPhotosList.slice(0, 4).map((photo: any) => (
+                <div
+                  key={photo.id}
+                  onClick={() => setSelectedPhoto(photo)}
+                  className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/20 hover:scale-[1.02] transition cursor-pointer"
+                >
+                  <div className="aspect-[3/4] bg-neutral-900 rounded-xl overflow-hidden mb-3">
+                    <img
+                      src={photo.url}
+                      alt="Gallery Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex justify-between items-center text-xs font-mono">
+                    <span className="truncate">
+                      {photo.parentPhoto?.username || "Guest"}
+                    </span>
+                    <button
+                      onClick={(e) => handleLike(photo.parentPhoto?.id, e)}
+                      className="flex items-center gap-1 text-red-400"
+                    >
+                      <Heart className="w-3.5 h-3.5 fill-current" />
+                      <span>{photo.parentPhoto?.likeCount || 0}</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

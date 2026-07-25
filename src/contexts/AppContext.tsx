@@ -211,6 +211,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         supabase
           .from("photos")
           .select(PHOTOS_SELECT)
+          .eq("is_public", true) // Only fetch public photos for gallery performance
           .order("timestamp", { ascending: false })
           .limit(200),
       ]);

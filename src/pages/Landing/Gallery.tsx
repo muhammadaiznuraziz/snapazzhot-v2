@@ -18,27 +18,6 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const FALLBACK_PHOTOS: Record<string, string[]> = {
-  "evt-wedding": [
-    "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1519225495810-7512c696505a?q=80&w=600&auto=format&fit=crop",
-  ],
-  "evt-graduation": [
-    "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1525921429573-0aa899981521?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1532649538693-f3a2ec1bf8bd?q=80&w=600&auto=format&fit=crop",
-  ],
-  "evt-corporate": [
-    "https://images.unsplash.com/photo-1511578314322-379afb476865?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=600&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=600&auto=format&fit=crop",
-  ],
-};
-
 const getIndividualPhotos = (photo: any) => {
   if (
     photo.meta?.rawPhotos &&
@@ -53,22 +32,16 @@ const getIndividualPhotos = (photo: any) => {
     }));
   }
 
-  const eventId = photo.eventId || "evt-wedding";
-  const fallbacks =
-    FALLBACK_PHOTOS[eventId] || FALLBACK_PHOTOS["evt-corporate"];
-  const hash = photo.id
-    .split("")
-    .reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-
-  return fallbacks.map((url: string, index: number) => {
-    const rotatedIndex = (index + hash) % fallbacks.length;
-    return {
-      id: `${photo.id}-raw-${index}`,
-      url: fallbacks[rotatedIndex],
+  // Fallback: use the photo URL from Supabase directly.
+  // Every photo stored in the database already has a public URL from Supabase Storage.
+  return [
+    {
+      id: `${photo.id}-raw-0`,
+      url: photo.url,
       parentPhoto: photo,
-      index: index,
-    };
-  });
+      index: 0,
+    },
+  ];
 };
 
 const IndividualPhotoCard = ({
@@ -93,7 +66,7 @@ const IndividualPhotoCard = ({
   return (
     <motion.div
       layout
-      className={`group relative w-full ${heightClass} rounded-[16px] overflow-hidden shadow-xl bg-neutral-900 cursor-pointer pointer-events-auto filter brightness-100 contrast-100 hover:brightness-105 hover:contrast-105 transition-all duration-300`}
+      className={`group relative w-full ${heightClass}  bg-neutral-900 cursor-pointer pointer-events-auto filter brightness-100 contrast-100 hover:brightness-105 hover:contrast-105 transition-all duration-300`}
       onClick={() => setSelectedPhoto(photo)}
       whileHover={{
         scale: 1.05,
@@ -149,7 +122,7 @@ const IndividualPhotoCard = ({
               {formattedDate}
             </p>
           </div>
-          <div className="flex items-center gap-2 bg-black/40 px-2 py-0.5 rounded-full border border-white/15 text-[10px]">
+          <div className="flex items-center gap-2 bg-black/40 px-2 py-0.5 text-[10px]">
             <span className="flex items-center gap-0.5">
               <Heart
                 className={`w-3 h-3 text-red-500 ${isLiked ? "fill-current" : ""}`}
@@ -220,6 +193,10 @@ export default function Gallery() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    fetchInitialData(true);
+  }, [fetchInitialData]);
 
   const handleLike = async (photoId: string, e?: React.MouseEvent) => {
     if (e) {
@@ -310,7 +287,7 @@ export default function Gallery() {
             {[...colItems, ...colItems].map((item, itemIdx) => (
               <div
                 key={`bg-img-${item.id}-${itemIdx}`}
-                className={`relative w-full ${item.heightClass} rounded-[16px] overflow-hidden bg-white/5 border border-white/5 shadow-inner`}
+                className={`relative w-full ${item.heightClass} `}
               >
                 <img
                   src={item.url}
@@ -396,16 +373,13 @@ export default function Gallery() {
           {loading ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4 w-full">
               {[1, 2, 3, 4, 5, 6].map((idx) => (
-                <div
-                  key={idx}
-                  className="bg-white/5 border border-white/10 rounded-[16px] p-2 animate-pulse space-y-3"
-                >
-                  <div className="h-[300px] bg-white/10 rounded-[12px]" />
+                <div key={idx} className=" p-2 animate-pulse space-y-3">
+                  <div className="h-[300px]" />
                 </div>
               ))}
             </div>
           ) : individualPhotosList.length === 0 ? (
-            <div className="p-16 text-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl font-mono text-xs text-white/50 uppercase tracking-widest">
+            <div className="p-16 text-center bg-white/5 backdrop-blur-sm border  font-mono text-xs text-white/50 uppercase tracking-widest">
               Belum ada cetak foto digital yang diunggah untuk kategori ini.
             </div>
           ) : (
@@ -447,7 +421,7 @@ export default function Gallery() {
                 <div className="text-center pt-4">
                   <button
                     onClick={() => setVisibleCount((prev) => prev + 12)}
-                    className="px-8 py-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-mono text-[11px] uppercase tracking-widest font-bold rounded-full transition cursor-pointer"
+                    className="px-8 py-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-mono text-[11px] uppercase tracking-widest font-bold  transition cursor-pointer"
                   >
                     Muat Kenangan Lebih Banyak
                   </button>
@@ -495,7 +469,7 @@ export default function Gallery() {
                   animate={{ scale: 1, opacity: 1, y: 0 }}
                   exit={{ scale: 0.95, opacity: 0, y: 30 }}
                   transition={{ type: "spring", damping: 25, stiffness: 350 }}
-                  className="bg-neutral-900 border border-white/20 text-white rounded-3xl max-w-4xl w-full overflow-hidden shadow-2xl flex flex-col md:flex-row relative my-8"
+                  className="bg-neutral-900 border border-white/20 text-white max-w-4xl w-full overflow-hidden shadow-2xl flex flex-col md:flex-row relative my-8"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
@@ -506,7 +480,7 @@ export default function Gallery() {
                   </button>
 
                   <div className="flex-1 bg-black p-6 flex flex-col items-center justify-center min-h-[350px] md:min-h-[550px] relative">
-                    <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-md border border-white/10 p-0.5 rounded-full flex gap-1 z-30 font-mono text-[9px] font-bold uppercase tracking-wider">
+                    <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-md border border-white/10 p-0.5  flex gap-1 z-30 font-mono text-[9px] font-bold uppercase tracking-wider">
                       <button
                         onClick={() => setShowFullStrip(false)}
                         className={`px-4 py-1.5 rounded-full transition cursor-pointer ${!showFullStrip ? "bg-[#bcff00] text-black" : "text-white/60 hover:text-white"}`}
@@ -524,7 +498,7 @@ export default function Gallery() {
                     <img
                       src={showFullStrip ? parent.url : selectedPhoto.url}
                       alt={eventName}
-                      className="max-h-[70vh] object-contain select-none rounded-2xl shadow-2xl"
+                      className="max-h-[70vh] object-contain select-none"
                     />
                   </div>
 

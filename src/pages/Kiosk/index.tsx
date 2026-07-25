@@ -528,7 +528,7 @@ export default function PhotoBoothKiosk() {
           timestamp: new Date().toISOString(),
           views: 0,
           prints_count: 0,
-          is_public: false,
+          is_public: true,
           username: "Guest",
           template_name: activeEvent.name || "Default Template",
           like_count: 0,

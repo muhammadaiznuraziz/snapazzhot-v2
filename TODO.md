@@ -1,23 +1,25 @@
-# ~~TODO: Perbaiki Proses Generate GIF dan BTS~~ ✅ SELESAI
+# TODO: Perbaiki Durasi BTS Video
 
-## Camera.tsx - GIF & BTS Recording
+## Steps
 
-- [x] 1. `triggerFlashAndSnap`: Ganti capture canvas dari 1280x720 ke resolusi asli kamera
-- [x] 2. `startBtsRecording`: Ganti recording canvas dari 1280x720 ke resolusi asli kamera
-- [x] 3. `startRecordingLoop`: Hapus mirror dari recording (mirror=false) agar tidak double flip di kompilasi BTS
-- [x] 4. `handleCompleteSession`: Ganti gifWidth/gifHeight dari 1280x720 ke resolusi asli kamera via `captureResolutionRef`
+### 1. BoothLayout.tsx - Fix `compileBtsVideoWithFrame()` sequential playback
 
-## BoothLayout.tsx - BTS Compilation
+- [x] Remove `loop: true` from video creation → changed to `loop: false`
+- [x] Calculate segment duration: `(countdownSeconds + 1) * 1000` ms
+- [x] Calculate total duration: `capturedFrames.length * segmentDuration`
+- [x] Track current segment index based on elapsed time using `currentSegment`
+- [x] Play/pause videos based on current segment (only play active segment)
+- [x] In `drawEl`, render static image for non-active segments, video only for active segment
 
-- [x] 5. Tidak ada perubahan - `drawMediaOnCanvas` akan menerapkan mirror sekali di kompilasi (karena recording sudah tidak bake-in mirror)
+### 2. BoothLayout.tsx - Fix `btsDuration` in meta
 
-## Hasil Akhir
+- [x] Changed from `Math.max(...sessionBtsCaptureTimes) + 2` to `capturedFrames.length * (countdownSeconds + 1)`
 
-| Aspek                | Sebelum                 | Sesudah                                           |
-| -------------------- | ----------------------- | ------------------------------------------------- |
-| GIF width/height     | Hardcoded 1280x720      | Resolusi asli kamera (misal 1920x1080 / 1280x720) |
-| Capture canvas       | Hardcoded 1280x720      | Resolusi asli video source                        |
-| BTS recording canvas | Hardcoded 1280x720      | Resolusi asli video source                        |
-| BTS Mirror OFF       | Video di-mirror (salah) | Normal (tidak mirror) ✅                          |
-| BTS Mirror ON        | Double flip             | Mirror sekali ✅                                  |
-| Orientasi            | Tidak konsisten         | Konsisten di semua media ✅                       |
+### 3. Apply sequential playback to custom & standard layout sections
+
+- [x] Applied `isActiveSegment` check in custom layout positions rendering
+- [x] Applied `isActiveSegment` check in `drawStandardSlot` for standard layouts
+
+### 4. Verify Print.tsx & Download.tsx
+
+- [x] Confirmed `loop: false` already set in both files (no changes needed)

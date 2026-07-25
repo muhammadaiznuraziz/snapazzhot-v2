@@ -6,7 +6,6 @@ import {
   Video,
   ArrowRight,
   Loader2,
-  Globe,
   Film,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -76,7 +75,6 @@ const BtsSlot = ({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.filter = getCanvasFilterString(filterId);
 
-      // JIKA ADA VIDEO: Selalu render video (bahkan saat ended, video element menahan frame terakhirnya)
       if (videoElement && videoElement.readyState >= 2) {
         renderMedia({
           ctx,
@@ -121,10 +119,11 @@ const BtsSlot = ({
 export default function BoothPrint() {
   const context = useOutletContext<BoothContextType>();
   const navigate = useNavigate();
-  const { templates, activeEvent } = useApp() as any;
+  const { templates, activeEvent, fetchInitialData } = useApp() as any;
 
   const {
     compiledPhotoRecord,
+    setCompiledPhotoRecord,
     sessionGifUrl,
     sessionVideoUrl,
     sessionVideoUrls,
@@ -135,12 +134,11 @@ export default function BoothPrint() {
     zoom,
   } = context;
 
-  // State Fitur Utama Halaman Print
+  // State Tab Tampilan Output
   const [activeTab, setActiveTab] = useState<"template" | "gif" | "bts">(
     "template",
   );
-  const [isPublic, setIsPublic] = useState(true);
-  const [updatingPrivacy, setUpdatingPrivacy] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 500 });
@@ -165,20 +163,39 @@ export default function BoothPrint() {
     }
   }, [compiledPhotoRecord, capturedFrames, navigate]);
 
-  // Handle Toggle Sinkronisasi Database untuk Galeri Publik
-  const handlePrivacyToggle = async (checked: boolean) => {
-    if (!compiledPhotoRecord?.id) return;
-    setIsPublic(checked);
-    setUpdatingPrivacy(true);
+  // Handler saat user klik tombol Selesai (Tampilkan foto di galeri publik)
+  const handleFinish = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     try {
-      await supabase
-        .from("event_photos")
-        .update({ is_public: checked })
-        .eq("id", compiledPhotoRecord.id);
-    } catch (error) {
-      console.error("Gagal memperbarui status privasi galeri:", error);
+      // Update photo record menjadi publik agar tampil di galeri
+      if (compiledPhotoRecord?.id) {
+        const { error } = await supabase
+          .from("photos")
+          .update({ is_public: true })
+          .eq("id", compiledPhotoRecord.id);
+
+        if (error) throw error;
+
+        // Sync local context state
+        if (setCompiledPhotoRecord) {
+          setCompiledPhotoRecord((prev: any) =>
+            prev ? { ...prev, isPublic: true } : null
+          );
+        }
+
+        // Refresh data galeri publik
+        await fetchInitialData(true);
+      }
+
+      navigate("/booth/success");
+    } catch (err) {
+      console.error("Gagal menyimpan otomatis ke galeri:", err);
+      // Tetap alihkan user agar pengalaman kiosk tidak terhenti
+      navigate("/booth/success");
     } finally {
-      setUpdatingPrivacy(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -202,7 +219,6 @@ export default function BoothPrint() {
   const canvasWidth = template?.canvasWidth || 1200;
   const canvasHeight = template?.canvasHeight || 800;
 
-  // Perhitungan rasio kontainer agar pratinjau presisi dan tidak overflow
   const scale = Math.min(
     (dimensions.width - 32) / canvasWidth,
     (dimensions.height - 32) / canvasHeight,
@@ -217,9 +233,9 @@ export default function BoothPrint() {
       {/* BACKGROUND MATRIX GRID */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-0" />
 
-      {/* GRID LAYOUT UTAMA (2-KOLOM DESKTOP / 1-KOLOM MOBILE) */}
+      {/* GRID LAYOUT UTAMA */}
       <div className="w-full h-full flex flex-col lg:flex-row gap-5 lg:gap-6 relative z-10 overflow-y-auto lg:overflow-hidden min-h-0">
-        {/* KOLOM KIRI: PREVIEW UTAMA (70-75% DESKTOP) */}
+        {/* KOLOM KIRI: PREVIEW UTAMA */}
         <div
           ref={previewContainerRef}
           className="flex-1 min-h-[380px] lg:min-h-0 flex items-center justify-center p-4 relative overflow-hidden shadow-2xl"
@@ -236,7 +252,7 @@ export default function BoothPrint() {
                   width: `${canvasWidth * scale}px`,
                   height: `${canvasHeight * scale}px`,
                 }}
-                className="shadow-2xl relative bg-neutral-900  overflow-hidden flex items-center justify-center"
+                className="shadow-2xl relative bg-neutral-900 overflow-hidden flex items-center justify-center"
               >
                 <img
                   src={compiledPhotoRecord.url}
@@ -279,7 +295,7 @@ export default function BoothPrint() {
                     : undefined,
                   backgroundSize: "cover",
                 }}
-                className="shadow-2xl relative  overflow-hidden"
+                className="shadow-2xl relative overflow-hidden"
               >
                 {elements.map((el: any) => {
                   const style: React.CSSProperties = {
@@ -336,10 +352,10 @@ export default function BoothPrint() {
           </AnimatePresence>
         </div>
 
-        {/* KOLOM KANAN: SIDEBAR ACTIONS (25-30% DESKTOP, ~340px - 360px) */}
+        {/* KOLOM KANAN: SIDEBAR ACTIONS */}
         <div className="w-full lg:w-[340px] xl:w-[360px] shrink-0 bg-neutral-950/80 backdrop-blur-md border border-white/10 rounded-2xl lg:rounded-[24px] p-5 flex flex-col gap-5 shadow-2xl justify-between">
           <div className="flex flex-col gap-5 text-left">
-            {/* SECTION 1: OUTPUT TYPE SELECTOR */}
+            {/* TIPE TAMPILAN SELECTOR */}
             <div className="flex flex-col gap-2">
               <span className="text-[10px] font-black uppercase text-[#bcff00] tracking-widest">
                 TIPE TAMPILAN
@@ -386,44 +402,26 @@ export default function BoothPrint() {
                 )}
               </div>
             </div>
-
-            {/* SECTION 2: PUBLIC GALLERY CARD */}
-            <div className="p-4 bg-neutral-900/80 border border-white/5 rounded-xl flex items-center justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-[#bcff00]/10 border border-[#bcff00]/20 rounded-lg shrink-0 mt-0.5">
-                  <Globe className="w-4 h-4 text-[#bcff00]" />
-                </div>
-                <div>
-                  <h4 className="text-[11px] font-black uppercase tracking-wider text-white">
-                    Galeri Publik
-                  </h4>
-                  <p className="text-[9px] text-white/50 leading-snug mt-0.5">
-                    Tampilkan foto Anda di galeri komunitas publik.
-                  </p>
-                </div>
-              </div>
-
-              <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                <input
-                  type="checkbox"
-                  checked={isPublic}
-                  disabled={updatingPrivacy}
-                  onChange={(e) => handlePrivacyToggle(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-neutral-800 border border-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-neutral-400 peer-checked:after:bg-black after:border-neutral-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#bcff00]"></div>
-              </label>
-            </div>
           </div>
 
-          {/* SECTION 3: ACTION BUTTON (SELESAI - POSISI PALING BAWAH) */}
+          {/* ACTION BUTTON (SELESAI) */}
           <div className="pt-2 mt-auto">
             <button
-              onClick={() => navigate("/booth/success")}
-              className="w-full py-3.5 bg-[#bcff00] hover:bg-white text-black text-xs font-black uppercase tracking-widest rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(188,255,0,0.2)]"
+              onClick={handleFinish}
+              disabled={isSubmitting}
+              className="w-full py-3.5 bg-[#bcff00] hover:bg-white disabled:bg-neutral-800 disabled:text-white/40 text-black text-xs font-black uppercase tracking-widest rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(188,255,0,0.2)]"
             >
-              <span>Selesai</span>
-              <ArrowRight className="w-4 h-4 stroke-[3]" />
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Menyimpan...</span>
+                </>
+              ) : (
+                <>
+                  <span>Selesai</span>
+                  <ArrowRight className="w-4 h-4 stroke-[3]" />
+                </>
+              )}
             </button>
           </div>
         </div>
