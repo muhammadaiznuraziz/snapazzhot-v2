@@ -37,42 +37,46 @@ export default function PhotoBoothKiosk() {
   // If no active event is configured yet, render a beautiful selection screen
   if (!activeEvent) {
     return (
-      <div className="min-h-screen bg-[#f8f7f4] text-[#1a1a1a] flex flex-col items-center justify-center p-6 text-center selection:bg-[#1a1a1a] selection:text-white font-sans">
-        <div className="max-w-md space-y-6">
-          <div className="h-12 w-12 bg-[#1a1a1a]/5 border border-[#1a1a1a]/[0.08] text-[#1a1a1a] rounded flex items-center justify-center mx-auto animate-pulse">
+      <div className="min-h-screen bg-[#0038FF] text-white flex flex-col items-center justify-center p-6 text-center selection:bg-[#bcff00] selection:text-black font-sans relative overflow-hidden">
+        {/* Blueprint Grid Background */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.15] z-0"
+          style={{
+            backgroundImage: `linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)`,
+            backgroundSize: "40px 40px",
+          }}
+        />
+        <div className="max-w-md space-y-6 relative z-10">
+          <div className="h-12 w-12 bg-white/10 backdrop-blur-md border border-white/20 text-[#bcff00] rounded-2xl flex items-center justify-center mx-auto animate-pulse">
             <Camera className="w-6 h-6" />
           </div>
           <div className="space-y-2">
-            <h3 className="text-2xl font-serif italic text-[#1a1a1a]">Kiosk Photo Booth</h3>
-            <p className="text-xs text-[#1a1a1a]/60 leading-relaxed">
+            <h3 className="text-2xl font-bold tracking-tight text-[#bcff00] uppercase font-mono">Kiosk Photo Booth</h3>
+            <p className="text-xs text-white/80 leading-relaxed font-medium">
               Silakan pilih salah satu event aktif berikut untuk memulai sesi pemotretan interaktif.
             </p>
           </div>
-          <div className="space-y-2 pt-2">
+          <div className="space-y-3 pt-2">
             {events.length === 0 ? (
-              <p className="text-xs text-[#1a1a1a]/40 italic font-mono uppercase tracking-widest">Belum ada event yang aktif. Silakan tambahkan lewat Dashboard Admin.</p>
+              <p className="text-xs text-white/50 italic font-mono uppercase tracking-widest">Belum ada event yang aktif. Silakan tambahkan lewat Dashboard Admin.</p>
             ) : (
               events.map(evt => (
                 <button
                   key={evt.id}
                   onClick={() => setActiveEvent(evt)}
-                  className="w-full p-4 bg-white hover:bg-[#1a1a1a]/5 border border-[#1a1a1a]/[0.08] rounded transition text-left flex justify-between items-center group cursor-pointer"
+                  className="w-full p-4 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-3xl transition text-left flex justify-between items-center group cursor-pointer shadow-xl"
                 >
                   <div>
-                    <p className="text-sm font-bold text-[#1a1a1a] group-hover:underline transition-colors">{evt.name}</p>
-                    <p className="text-[9px] text-[#1a1a1a]/40 uppercase font-mono tracking-widest mt-1">{evt.layoutType} layout • {evt.photoCount} snaps</p>
+                    <h4 className="font-bold text-white text-sm">{evt.name}</h4>
+                    <p className="text-[10px] font-mono text-[#bcff00] uppercase tracking-wider">{evt.photoCount} foto • {evt.layoutType}</p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-[#1a1a1a]/40 group-hover:text-[#1a1a1a] transition-colors" />
+                  <span className="p-2 bg-black/40 text-white rounded-full group-hover:bg-[#bcff00] group-hover:text-black transition">
+                    Mulai
+                  </span>
                 </button>
               ))
             )}
           </div>
-          <button
-            onClick={() => navigate("/landing")}
-            className="text-xs text-[#1a1a1a]/50 hover:text-[#1a1a1a] underline transition font-mono uppercase tracking-widest"
-          >
-            Kembali ke Beranda
-          </button>
         </div>
       </div>
     );

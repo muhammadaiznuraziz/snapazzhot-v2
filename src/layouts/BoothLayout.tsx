@@ -2295,9 +2295,17 @@ export default function BoothLayout() {
   }
 
   return (
-    <div className="relative h-screen h-[100dvh] bg-[#f8f7f4] text-[#1a1a1a] flex flex-col justify-between overflow-hidden">
+    <div className="relative h-screen h-[100dvh] bg-[#0038FF] text-white font-sans flex flex-col justify-between overflow-hidden selection:bg-[#bcff00] selection:text-black">
+      {/* Blueprint Grid Background */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.15] z-0"
+        style={{
+          backgroundImage: `linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)`,
+          backgroundSize: "40px 40px",
+        }}
+      />
       <canvas ref={offscreenCanvasRef} style={{ display: "none" }} />
-      <div className="flex-1 flex flex-col justify-stretch min-h-0 h-full relative overflow-hidden">
+      <div className="flex-1 flex flex-col justify-stretch min-h-0 h-full relative z-10 overflow-hidden">
         <Outlet
           context={{
             activeEvent,

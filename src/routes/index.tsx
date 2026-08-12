@@ -26,7 +26,7 @@ import AdminDashboard from "../pages/Dashboard/index";
 
 // Loading Fallback Component
 const Loader = () => (
-  <div className="min-h-screen bg-[#f8f7f4] text-[#1a1a1a] flex items-center justify-center font-mono text-[10px] uppercase tracking-widest animate-pulse">
+  <div className="min-h-screen bg-[#0038FF] text-white flex items-center justify-center font-mono text-[10px] uppercase tracking-widest animate-pulse selection:bg-[#bcff00] selection:text-black">
     Memuat halaman snapazzhot...
   </div>
 );
@@ -40,14 +40,7 @@ export default function AppRoutes() {
 
         {/* Public Visitor Routes */}
         <Route element={<LandingLayout />}>
-          <Route path="/landing" element={<LandingIndex
-            events={[]}
-            activeEvent={null}
-            setActiveEvent={() => {}}
-            onStartKiosk={() => {}}
-            onOpenAdmin={() => {}}
-            onOpenGallery={() => {}}
-          />} />
+          <Route path="/landing" element={<LandingIndex />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/download/:id" element={<DownloadPortal />} />
         </Route>

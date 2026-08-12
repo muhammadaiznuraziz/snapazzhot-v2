@@ -7,7 +7,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AppProvider>
-        <div className="min-h-screen bg-[#f8f7f4] text-[#1a1a1a] font-sans selection:bg-[#1a1a1a] selection:text-white">
+        <div className="min-h-screen bg-[#0038FF] text-white font-sans selection:bg-[#bcff00] selection:text-black">
           <AppRoutes />
         </div>
       </AppProvider>

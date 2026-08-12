@@ -9,14 +9,16 @@ export default function LandingLayout() {
   const navigate = useNavigate();
 
   return (
-    // PRO UPGRADE: Ubah background dasar ke hitam/biru gelap agar aman untuk Kiosk, dan hilangkan overflow keliru
-    <div className="relative min-h-screen bg-[#004ce5] text-[#1a1a1a] font-sans overflow-x-hidden selection:bg-[#1a1a1a] selection:text-white flex flex-col justify-between">
-      {/* 
-        CORRECTION: 
-        Hapus `px-4 sm:px-6 md:px-8 py-8` dan `justify-center`. 
-        Elemen main harus benar-benar edge-to-edge (0 padding) agar halaman Gallery biru bisa memenuhi seluruh layar monitor kiosk.
-      */}
-      <main className="w-full flex-1 flex flex-col">
+    <div className="relative min-h-screen bg-[#0038FF] text-white font-sans overflow-x-hidden selection:bg-[#bcff00] selection:text-black flex flex-col justify-between">
+      {/* Blueprint Grid Background */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.15] z-0"
+        style={{
+          backgroundImage: `linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)`,
+          backgroundSize: "40px 40px",
+        }}
+      />
+      <main className="w-full flex-1 flex flex-col relative z-10">
         <Outlet />
       </main>
     </div>

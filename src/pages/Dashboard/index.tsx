@@ -520,29 +520,37 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f7f4] text-[#1a1a1a] font-sans flex flex-col selection:bg-[#1a1a1a] selection:text-white">
+    <div className="min-h-screen bg-[#0038FF] text-white font-sans flex flex-col selection:bg-[#bcff00] selection:text-black relative overflow-hidden">
+      {/* Blueprint Grid Background */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.15] z-0"
+        style={{
+          backgroundImage: `linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)`,
+          backgroundSize: "40px 40px",
+        }}
+      />
       {/* Toast Alert */}
       {toastMessage && (
-        <div className="fixed top-6 right-6 z-50 px-4 py-3 bg-[#1a1a1a] text-white border border-[#1a1a1a] rounded shadow-2xl text-[10px] font-mono uppercase tracking-widest font-bold flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-white" />
+        <div className="fixed top-6 right-6 z-50 px-4 py-3 bg-black text-white border border-white/20 rounded-full shadow-2xl text-[10px] font-mono uppercase tracking-widest font-bold flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-[#bcff00]" />
           {toastMessage}
         </div>
       )}
 
       {/* Header section */}
-      <header className="p-4 bg-white border-b border-[#1a1a1a]/[0.08] flex justify-between items-center shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-[#1a1a1a]/5 text-[#1a1a1a] rounded">
+      <header className="p-4 bg-white/10 backdrop-blur-xl border-b border-white/20 flex justify-between items-center shrink-0 relative z-10">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-white/20 backdrop-blur-md text-[#bcff00] rounded-2xl border border-white/30">
             <LayoutGrid className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-sm font-serif italic text-[#1a1a1a] tracking-tight pr-2">
-              snapazzhot
+            <span className="text-sm font-bold tracking-tight text-[#bcff00] uppercase font-mono pr-2">
+              #SNAPAZZHOT
             </span>
-            <span className="text-[10px] text-[#1a1a1a]/40 font-mono inline-block border-l border-[#1a1a1a]/[0.08] pl-2">
+            <span className="text-[10px] text-white/70 font-mono inline-block border-l border-white/20 pl-2">
               Admin Console
             </span>
-            <span className="text-[8px] text-[#1a1a1a]/30 font-mono block">
+            <span className="text-[8px] text-white/50 font-mono block">
               Operator Port: 3000 • Database Connected
             </span>
           </div>
@@ -550,26 +558,26 @@ export default function AdminDashboard() {
 
         <button
           onClick={onClose}
-          className="px-4 py-2 bg-transparent hover:bg-[#1a1a1a]/5 border border-[#1a1a1a]/[0.08] text-[#1a1a1a]/70 font-mono text-[9px] font-bold uppercase tracking-widest rounded transition cursor-pointer"
+          className="px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-mono text-[9px] font-bold uppercase tracking-widest rounded-full transition cursor-pointer shadow-lg"
         >
           Keluar Dashboard
         </button>
       </header>
 
       {/* Main Panel grid layout */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative z-10">
         {/* Sidebar Nav */}
-        <aside className="w-full md:w-64 bg-white border-r border-[#1a1a1a]/[0.08] p-4 space-y-2 shrink-0">
-          <span className="text-[9px] font-bold text-[#1a1a1a]/40 uppercase tracking-widest px-3 block mb-4 font-mono">
+        <aside className="w-full md:w-64 bg-white/10 backdrop-blur-xl border-r border-white/20 p-4 space-y-2 shrink-0">
+          <span className="text-[9px] font-bold text-[#bcff00] uppercase tracking-widest px-3 block mb-4 font-mono">
             NAVIGASI KONTROL
           </span>
 
           <button
             onClick={() => setActiveTab("overview")}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-widest rounded transition ${
+            className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest rounded-full transition cursor-pointer ${
               activeTab === "overview"
-                ? "bg-[#1a1a1a] text-white shadow-sm"
-                : "text-[#1a1a1a]/60 hover:text-[#1a1a1a] hover:bg-[#1a1a1a]/5"
+                ? "bg-[#bcff00] text-black shadow-lg"
+                : "text-white/80 hover:text-white hover:bg-white/10"
             }`}
           >
             <LayoutGrid className="w-4 h-4" />
@@ -578,10 +586,10 @@ export default function AdminDashboard() {
 
           <button
             onClick={() => setActiveTab("events")}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-widest rounded transition ${
+            className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest rounded-full transition cursor-pointer ${
               activeTab === "events"
-                ? "bg-[#1a1a1a] text-white shadow-sm"
-                : "text-[#1a1a1a]/60 hover:text-[#1a1a1a] hover:bg-[#1a1a1a]/5"
+                ? "bg-[#bcff00] text-black shadow-lg"
+                : "text-white/80 hover:text-white hover:bg-white/10"
             }`}
           >
             <Calendar className="w-4 h-4" />
@@ -590,10 +598,10 @@ export default function AdminDashboard() {
 
           <button
             onClick={() => setActiveTab("templates")}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-widest rounded transition ${
+            className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest rounded-full transition cursor-pointer ${
               activeTab === "templates"
-                ? "bg-[#1a1a1a] text-white shadow-sm"
-                : "text-[#1a1a1a]/60 hover:text-[#1a1a1a] hover:bg-[#1a1a1a]/5"
+                ? "bg-[#bcff00] text-black shadow-lg"
+                : "text-white/80 hover:text-white hover:bg-white/10"
             }`}
           >
             <Sparkles className="w-4 h-4" />
@@ -602,10 +610,10 @@ export default function AdminDashboard() {
 
           <button
             onClick={() => setActiveTab("gallery")}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-widest rounded transition ${
+            className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest rounded-full transition cursor-pointer ${
               activeTab === "gallery"
-                ? "bg-[#1a1a1a] text-white shadow-sm"
-                : "text-[#1a1a1a]/60 hover:text-[#1a1a1a] hover:bg-[#1a1a1a]/5"
+                ? "bg-[#bcff00] text-black shadow-lg"
+                : "text-white/80 hover:text-white hover:bg-white/10"
             }`}
           >
             <FileText className="w-4 h-4" />
@@ -614,10 +622,10 @@ export default function AdminDashboard() {
 
           <button
             onClick={() => setActiveTab("printer")}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-widest rounded transition ${
+            className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest rounded-full transition cursor-pointer ${
               activeTab === "printer"
-                ? "bg-[#1a1a1a] text-white shadow-sm"
-                : "text-[#1a1a1a]/60 hover:text-[#1a1a1a] hover:bg-[#1a1a1a]/5"
+                ? "bg-[#bcff00] text-black shadow-lg"
+                : "text-white/80 hover:text-white hover:bg-white/10"
             }`}
           >
             <Printer className="w-4 h-4" />
@@ -626,38 +634,38 @@ export default function AdminDashboard() {
 
           <button
             onClick={() => setActiveTab("camera")}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-widest rounded transition ${
+            className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest rounded-full transition cursor-pointer ${
               activeTab === "camera"
-                ? "bg-[#1a1a1a] text-white shadow-sm"
-                : "text-[#1a1a1a]/60 hover:text-[#1a1a1a] hover:bg-[#1a1a1a]/5"
+                ? "bg-[#bcff00] text-black shadow-lg"
+                : "text-white/80 hover:text-white hover:bg-white/10"
             }`}
           >
             <Camera className="w-4 h-4" />
-            DSLR Camera Service
+            DSLR Camera Status
           </button>
 
           <button
             onClick={() => setActiveTab("logs")}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-widest rounded transition ${
+            className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest rounded-full transition cursor-pointer ${
               activeTab === "logs"
-                ? "bg-[#1a1a1a] text-white shadow-sm"
-                : "text-[#1a1a1a]/60 hover:text-[#1a1a1a] hover:bg-[#1a1a1a]/5"
+                ? "bg-[#bcff00] text-black shadow-lg"
+                : "text-white/80 hover:text-white hover:bg-white/10"
             }`}
           >
-            <Database className="w-4 h-4" />
-            Sistem Logs & Antrean
+            <RefreshCw className="w-4 h-4" />
+            System Activity Logs
           </button>
 
           <button
             onClick={() => setActiveTab("settings")}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-widest rounded transition ${
+            className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest rounded-full transition cursor-pointer ${
               activeTab === "settings"
-                ? "bg-[#1a1a1a] text-white shadow-sm"
-                : "text-[#1a1a1a]/60 hover:text-[#1a1a1a] hover:bg-[#1a1a1a]/5"
+                ? "bg-[#bcff00] text-black shadow-lg"
+                : "text-white/80 hover:text-white hover:bg-white/10"
             }`}
           >
             <Settings className="w-4 h-4" />
-            Sistem Settings
+            System Settings
           </button>
         </aside>
 
@@ -678,64 +686,64 @@ export default function AdminDashboard() {
 
               {/* Stats Grid */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="p-4 bg-white border border-[#1a1a1a]/[0.08] rounded shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
-                  <span className="text-[9px] font-bold text-[#1a1a1a]/40 uppercase tracking-widest font-mono">
+                <div className="p-6 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl">
+                  <span className="text-[9px] font-bold text-[#bcff00] uppercase tracking-widest font-mono">
                     TOTAL CAPTURES
                   </span>
-                  <p className="text-2xl font-serif text-[#1a1a1a] italic mt-1">
+                  <p className="text-2xl font-bold text-white tracking-tight mt-1 font-mono">
                     {analytics.photosCount} Foto
                   </p>
-                  <span className="text-[9px] text-[#1a1a1a]/30 font-mono block mt-1">
+                  <span className="text-[9px] text-white/50 font-mono block mt-1">
                     Realtime uploads
                   </span>
                 </div>
-                <div className="p-4 bg-white border border-[#1a1a1a]/[0.08] rounded shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
-                  <span className="text-[9px] font-bold text-[#1a1a1a]/40 uppercase tracking-widest font-mono">
+                <div className="p-6 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl">
+                  <span className="text-[9px] font-bold text-[#bcff00] uppercase tracking-widest font-mono">
                     PRINTED LAYOUTS
                   </span>
-                  <p className="text-2xl font-serif text-[#1a1a1a] italic mt-1">
+                  <p className="text-2xl font-bold text-white tracking-tight mt-1 font-mono">
                     {analytics.totalPrints} Pcs
                   </p>
-                  <span className="text-[9px] text-[#1a1a1a]/30 font-mono block mt-1">
+                  <span className="text-[9px] text-white/50 font-mono block mt-1">
                     Thermal & Dye-Sub
                   </span>
                 </div>
-                <div className="p-4 bg-white border border-[#1a1a1a]/[0.08] rounded shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
-                  <span className="text-[9px] font-bold text-[#1a1a1a]/40 uppercase tracking-widest font-mono">
+                <div className="p-6 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl">
+                  <span className="text-[9px] font-bold text-[#bcff00] uppercase tracking-widest font-mono">
                     EMAIL QUEUE
                   </span>
-                  <p className="text-2xl font-serif text-[#1a1a1a] italic mt-1">
+                  <p className="text-2xl font-bold text-white tracking-tight mt-1 font-mono">
                     {analytics.totalEmails} Sent
                   </p>
-                  <span className="text-[9px] text-[#1a1a1a]/30 font-mono block mt-1">
+                  <span className="text-[9px] text-white/50 font-mono block mt-1">
                     SMTP Relay Logs
                   </span>
                 </div>
-                <div className="p-4 bg-white border border-[#1a1a1a]/[0.08] rounded shadow-[0_4px_20px_rgba(0,0,0,0.01)]">
-                  <span className="text-[9px] font-bold text-[#1a1a1a]/40 uppercase tracking-widest font-mono">
+                <div className="p-6 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl">
+                  <span className="text-[9px] font-bold text-[#bcff00] uppercase tracking-widest font-mono">
                     EVENT VISITOR
                   </span>
-                  <p className="text-2xl font-serif text-[#1a1a1a] italic mt-1">
+                  <p className="text-2xl font-bold text-white tracking-tight mt-1 font-mono">
                     ~{analytics.visitorCount}
                   </p>
-                  <span className="text-[9px] text-[#1a1a1a]/30 font-mono block mt-1">
+                  <span className="text-[9px] text-white/50 font-mono block mt-1">
                     Active scanned QR
                   </span>
                 </div>
               </div>
 
               {/* GORGEOUS SVG ANALYTICAL CHART */}
-              <div className="p-5 bg-white border border-[#1a1a1a]/[0.08] rounded shadow-[0_4px_20px_rgba(0,0,0,0.01)] space-y-4">
+              <div className="p-6 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl space-y-4">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h4 className="text-sm font-serif italic text-[#1a1a1a]">
+                    <h4 className="text-base font-bold text-white uppercase font-mono tracking-tight">
                       Grafik Aktivitas Mingguan
                     </h4>
-                    <p className="text-[10px] text-[#1a1a1a]/50 mt-0.5">
+                    <p className="text-[10px] text-white/75 mt-0.5 font-medium">
                       Analisis harian untuk total Foto, Cetak, dan GIF.
                     </p>
                   </div>
-                  <span className="px-2.5 py-1 bg-[#1a1a1a]/5 border border-[#1a1a1a]/[0.08] text-[9px] text-[#1a1a1a]/60 font-mono font-bold uppercase tracking-widest rounded">
+                  <span className="px-3 py-1 bg-white/20 border border-white/30 text-[9px] text-[#bcff00] font-mono font-bold uppercase tracking-widest rounded-full">
                     Real-Time Chart
                   </span>
                 </div>

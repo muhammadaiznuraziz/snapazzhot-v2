@@ -435,7 +435,6 @@ export default function BoothCamera() {
 
     let streamToRecord: MediaStream | null = null;
 
-    // Get camera native resolution for recording canvas
     const videoEl = videoRef.current;
     const camWidth = videoEl?.videoWidth || 1280;
     const camHeight = videoEl?.videoHeight || 720;
@@ -759,7 +758,6 @@ export default function BoothCamera() {
       } catch (_) {}
     }
 
-    // Use camera native resolution for GIF output
     const { width: gifW, height: gifH } = captureResolutionRef.current;
 
     try {
@@ -795,15 +793,15 @@ export default function BoothCamera() {
 
   if (processingMedia) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#004ce5] text-white flex flex-col items-center justify-center space-y-6 p-6 font-['Outfit',sans-serif]">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-0" />
-        <div className="w-16 h-16 border-4 border-[#bcff00] border-t-transparent rounded-full animate-spin relative z-10 shadow-[0_0_20px_rgba(188,255,0,0.3)]" />
+      <div className="fixed inset-0 z-50 bg-[#0038FF] text-white flex flex-col items-center justify-center space-y-6 p-6 font-sans">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(204,255,0,0.15),transparent_50%),radial-gradient(circle_at_bottom_left,rgba(0,46,214,0.8),transparent_70%)] pointer-events-none z-0" />
+        <div className="w-16 h-16 border-4 border-[#CCFF00] border-t-transparent rounded-full animate-spin relative z-10 shadow-[0_0_25px_rgba(204,255,0,0.4)]" />
         <div className="text-center space-y-2 max-w-md relative z-10">
-          <h2 className="text-2xl font-black uppercase tracking-wider text-[#bcff00] italic">
-            Memproses Foto...
+          <h2 className="text-2xl font-black uppercase tracking-wider text-[#CCFF00]">
+            PROCESSING PHOTOS...
           </h2>
-          <p className="text-xs text-white/70 uppercase tracking-widest font-mono">
-            Mengompilasi animasi GIF & BTS Video Footage...
+          <p className="text-xs text-white/80 uppercase tracking-widest font-mono">
+            Compiling animated GIF & BTS Video Footage...
           </p>
         </div>
       </div>
@@ -815,10 +813,10 @@ export default function BoothCamera() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 w-screen h-[100dvh] z-40 bg-[#004ce5] text-white flex flex-col overflow-hidden font-sans select-none"
+      className="fixed inset-0 w-screen h-[100dvh] z-40 bg-[#0038FF] text-white flex flex-col overflow-hidden font-sans select-none"
     >
-      {/* MATRIX GRID BACKGROUND */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-0" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(204,255,0,0.15),transparent_50%),radial-gradient(circle_at_bottom_left,rgba(0,46,214,0.8),transparent_70%)] pointer-events-none z-0" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-0" />
 
       {/* FLASH SCREEN TRIGGER */}
       <AnimatePresence>
@@ -836,17 +834,17 @@ export default function BoothCamera() {
       {/* MAIN CONTAINER */}
       <div className="relative z-10 flex-1 h-full w-full flex flex-col p-4 md:p-6 max-w-7xl mx-auto overflow-hidden">
         {/* HEADER BAR */}
-        <header className="flex items-center justify-between py-2 px-1 mb-2 shrink-0 border-b border-white/15">
+        <header className="flex items-center justify-between py-2 px-1 mb-2 shrink-0 border-b border-white/20">
           <div className="flex items-center gap-3">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#bcff00] animate-pulse" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#CCFF00] animate-pulse" />
             <h1 className="text-sm md:text-base font-black tracking-widest uppercase text-white font-mono">
               SNAPAZZHOT
             </h1>
           </div>
-          <div className="px-3.5 py-1 bg-black/40 border border-white/15 rounded-full text-[10px] font-mono tracking-widest uppercase text-[#bcff00]">
+          <div className="px-4 py-1.5 glass-pill text-[10px] font-mono tracking-widest uppercase text-[#CCFF00] font-bold">
             {sessionState === "review_all"
-              ? "SESI SELESAI"
-              : `FRAME ${currentPhotoIndex + (sessionState === "preview_single" ? 1 : 0)} DARI ${photosToTake}`}
+              ? "SESSION COMPLETE"
+              : `FRAME ${currentPhotoIndex + (sessionState === "preview_single" ? 1 : 0)} OF ${photosToTake}`}
           </div>
         </header>
 
@@ -856,19 +854,18 @@ export default function BoothCamera() {
             /* REVIEW ALL LAYOUT */
             <div className="w-full h-full flex flex-col items-center justify-between gap-4 py-2">
               <div className="text-center space-y-1 shrink-0">
-                <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-white ">
-                  Tinjau Hasil Foto Sesi
+                <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white">
+                  REVIEW YOUR SESSION SHOTS
                 </h2>
-                <p className="text-xs text-white/70 max-w-md mx-auto">
-                  Silakan periksa susunan foto. Tekan tombol retake jika ingin
-                  mengambil ulang slot tertentu.
+                <p className="text-xs text-white/80 max-w-md mx-auto font-medium">
+                  Check your photo composition. Click retake if you want to recapture any specific slot.
                 </p>
               </div>
 
               {/* FRAME CANVAS PREVIEW */}
               <div
                 ref={previewContainerRef}
-                className="w-full flex-1 min-h-[280px] flex items-center justify-center relative "
+                className="w-full flex-1 min-h-[280px] flex items-center justify-center relative"
               >
                 <div
                   style={{
@@ -888,7 +885,7 @@ export default function BoothCamera() {
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                   }}
-                  className="shadow-2xl border border-white/20 relative overflow-hidden rounded-md"
+                  className="shadow-[0_25px_50px_rgba(0,0,0,0.35)] border border-white/25 relative overflow-hidden rounded-[20px]"
                 >
                   {elements.map((el: any) => {
                     const style: React.CSSProperties = {
@@ -917,7 +914,7 @@ export default function BoothCamera() {
                             ...style,
                             borderRadius: `${el.borderRadius || 0}px`,
                           }}
-                          className="overflow-hidden bg-neutral-900 border border-white/10 relative flex items-center justify-center"
+                          className="overflow-hidden bg-neutral-900 border border-white/20 relative flex items-center justify-center"
                         >
                           {imageUrl ? (
                             <img
@@ -931,10 +928,10 @@ export default function BoothCamera() {
                             />
                           ) : (
                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 text-white gap-2">
-                              <RotateCcw className="w-5 h-5 animate-spin text-[#bcff00]" />
+                              <RotateCcw className="w-5 h-5 animate-spin text-[#CCFF00]" />
                             </div>
                           )}
-                          <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/80 text-[#bcff00] text-[9px] font-mono tracking-wider uppercase rounded border border-white/10">
+                          <div className="absolute top-2.5 left-2.5 px-2.5 py-0.5 bg-black/80 text-[#CCFF00] text-[9px] font-mono tracking-wider uppercase rounded-full border border-white/20 font-bold">
                             #{photoIdx + 1}
                           </div>
                         </div>
@@ -1007,7 +1004,7 @@ export default function BoothCamera() {
 
               {/* ACTIONS & RETAKES BAR */}
               <div className="w-full max-w-xl flex flex-col items-center gap-3 shrink-0">
-                <div className="flex flex-wrap justify-center gap-2 w-full">
+                <div className="flex flex-wrap justify-center gap-2.5 w-full">
                   {photoElementsSorted.map((el: any, idx: number) => (
                     <button
                       key={el.id}
@@ -1020,7 +1017,7 @@ export default function BoothCamera() {
                         });
                         startCountDownSequence(true, idx);
                       }}
-                      className="px-3.5 py-1.5 bg-black/40 hover:bg-[#bcff00] hover:text-black border border-white/20 text-xs font-mono font-bold uppercase text-white rounded-lg transition flex items-center gap-2 cursor-pointer shadow-sm"
+                      className="px-4 py-2 bg-white/10 hover:bg-[#CCFF00] hover:text-black border border-white/25 text-xs font-mono font-bold uppercase text-white rounded-full transition cursor-pointer shadow-md flex items-center gap-2"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       Retake #{idx + 1}
@@ -1028,7 +1025,7 @@ export default function BoothCamera() {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-3 w-full pt-1">
+                <div className="flex items-center gap-3 w-full pt-2">
                   <button
                     onClick={() => {
                       if (
@@ -1047,16 +1044,16 @@ export default function BoothCamera() {
                       setCurrentPhotoIndex(0);
                       setSessionState("ready");
                     }}
-                    className="flex-1 py-3 bg-black/40 hover:bg-red-600 border border-white/15 hover:border-transparent text-xs font-mono font-bold uppercase tracking-wider text-white/80 hover:text-white rounded-xl transition cursor-pointer text-center"
+                    className="flex-1 py-3.5 bg-white/10 hover:bg-red-500/20 border border-white/20 text-xs font-mono font-bold uppercase tracking-wider text-white rounded-full transition cursor-pointer text-center"
                   >
                     Reset
                   </button>
                   <button
                     onClick={() => handleCompleteSession(tempCaptured)}
-                    className="flex-1 py-3 bg-[#bcff00] hover:bg-white text-black text-xs font-mono font-black uppercase tracking-wider rounded-xl transition cursor-pointer shadow-xl flex items-center justify-center gap-2"
+                    className="flex-1 py-3.5 bg-[#CCFF00] hover:bg-white text-black text-xs font-mono font-black uppercase tracking-wider rounded-full transition cursor-pointer shadow-[0_0_25px_rgba(204,255,0,0.3)] flex items-center justify-center gap-2"
                   >
-                    <span>Lanjut Ke Editor</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <span>Proceed to Editor</span>
+                    <ArrowRight className="w-4 h-4 stroke-[3]" />
                   </button>
                 </div>
               </div>
@@ -1065,7 +1062,7 @@ export default function BoothCamera() {
             /* CAMERA LIVE VIEWPORT LAYOUT */
             <div className="w-full h-full flex flex-col items-center justify-between gap-4">
               {/* CAMERA VIEWPORT FRAME */}
-              <div className="relative w-full flex-1 max-h-[70vh] aspect-[16/9] bg-neutral-900 border-2 border-white/20 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center">
+              <div className="relative w-full flex-1 max-h-[70vh] aspect-[16/9] bg-neutral-950 border-2 border-white/25 rounded-[32px] overflow-hidden shadow-[0_25px_50px_rgba(0,0,0,0.4)] flex items-center justify-center">
                 <div
                   className="w-full h-full relative"
                   style={{
@@ -1078,13 +1075,13 @@ export default function BoothCamera() {
                   }}
                 >
                   {useSimulator ? (
-                    <div className="absolute inset-0 bg-neutral-900 flex flex-col items-center justify-center space-y-3 text-white p-4">
-                      <Camera className="w-10 h-10 text-[#bcff00] animate-pulse" />
+                    <div className="absolute inset-0 bg-neutral-950 flex flex-col items-center justify-center space-y-3 text-white p-4">
+                      <Camera className="w-12 h-12 text-[#CCFF00] animate-pulse" />
                       <div className="space-y-1 text-center">
-                        <p className="text-xs font-mono uppercase tracking-widest text-[#bcff00]">
-                          Simulator Kamera Aktif
+                        <p className="text-xs font-mono uppercase tracking-widest text-[#CCFF00] font-bold">
+                          DSLR Simulator Active
                         </p>
-                        <p className="text-[10px] text-neutral-400 font-mono">
+                        <p className="text-[10px] text-white/50 font-mono">
                           Frame Index #{currentPhotoIndex + 1}
                         </p>
                       </div>
@@ -1118,44 +1115,44 @@ export default function BoothCamera() {
                 )}
 
                 {/* FLOATING CAMERA TOGGLES */}
-                <div className="absolute top-4 right-4 z-30 flex items-center gap-2 bg-black/50 backdrop-blur-md p-1.5 rounded-xl border border-white/15">
+                <div className="absolute top-4 right-4 z-30 flex items-center gap-2 glass-panel p-2 rounded-full border border-white/25 shadow-xl">
                   <button
                     onClick={() => setShowGrid(!showGrid)}
-                    className={`p-2 rounded-lg transition cursor-pointer ${
+                    className={`p-2.5 rounded-full transition cursor-pointer ${
                       showGrid
-                        ? "bg-[#bcff00] text-black"
-                        : "text-white/80 hover:text-white hover:bg-white/10"
+                        ? "bg-[#CCFF00] text-black shadow-md"
+                        : "text-white hover:bg-white/20"
                     }`}
                     title="Grid"
                   >
-                    <Grid className="w-4 h-4" />
+                    <Grid className="w-4 h-4 stroke-[2.5]" />
                   </button>
 
                   <button
                     onClick={() => setMirror(!mirror)}
-                    className={`p-2 rounded-lg transition cursor-pointer ${
+                    className={`p-2.5 rounded-full transition cursor-pointer ${
                       mirror
-                        ? "bg-[#bcff00] text-black"
-                        : "text-white/80 hover:text-white hover:bg-white/10"
+                        ? "bg-[#CCFF00] text-black shadow-md"
+                        : "text-white hover:bg-white/20"
                     }`}
                     title="Mirror Image"
                   >
-                    <RefreshCw className="w-4 h-4" />
+                    <RefreshCw className="w-4 h-4 stroke-[2.5]" />
                   </button>
 
                   <button
                     onClick={() => setIsMuted(!isMuted)}
-                    className={`p-2 rounded-lg transition cursor-pointer ${
+                    className={`p-2.5 rounded-full transition cursor-pointer ${
                       isMuted
                         ? "bg-red-500/30 text-red-300 border border-red-500/40"
-                        : "text-white/80 hover:text-white hover:bg-white/10"
+                        : "text-white hover:bg-white/20"
                     }`}
                     title="Sound Effects"
                   >
                     {isMuted ? (
-                      <VolumeX className="w-4 h-4" />
+                      <VolumeX className="w-4 h-4 stroke-[2.5]" />
                     ) : (
-                      <Volume2 className="w-4 h-4" />
+                      <Volume2 className="w-4 h-4 stroke-[2.5]" />
                     )}
                   </button>
                 </div>
@@ -1169,7 +1166,7 @@ export default function BoothCamera() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-30 pointer-events-none"
+                        className="absolute inset-0 bg-black/50 flex items-center justify-center z-30 pointer-events-none"
                       >
                         <motion.span
                           key={currentCountdownVal}
@@ -1177,7 +1174,7 @@ export default function BoothCamera() {
                           animate={{ scale: 1, opacity: 1 }}
                           exit={{ scale: 1.4, opacity: 0 }}
                           transition={{ duration: 0.8, ease: "easeOut" }}
-                          className="text-8xl md:text-9xl font-black text-[#bcff00] font-mono italic"
+                          className="text-8xl md:text-9xl font-black text-[#CCFF00] font-mono italic"
                         >
                           {currentCountdownVal}
                         </motion.span>
@@ -1194,16 +1191,16 @@ export default function BoothCamera() {
                       exit={{ opacity: 0 }}
                       className="absolute inset-0 bg-neutral-950 flex flex-col items-center justify-center p-4 z-40"
                     >
-                      <div className="relative w-full h-full max-w-2xl max-h-[80%] rounded-xl overflow-hidden border border-white/20 shadow-2xl">
+                      <div className="relative w-full h-full max-w-2xl max-h-[80%] rounded-[24px] overflow-hidden border border-white/25 shadow-2xl">
                         <img
                           src={latestSnappedPhoto}
                           alt="Review Shot"
                           className="w-full h-full object-cover"
                         />
                       </div>
-                      <div className="mt-4 flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-[#bcff00]">
-                        <span className="w-2 h-2 rounded-full bg-[#bcff00] animate-ping" />
-                        <span>Foto Berhasil Diambil</span>
+                      <div className="mt-4 flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-[#CCFF00] font-bold">
+                        <span className="w-2 h-2 rounded-full bg-[#CCFF00] animate-ping" />
+                        <span>Shot Captured Successfully</span>
                       </div>
                     </motion.div>
                   )}
@@ -1211,18 +1208,18 @@ export default function BoothCamera() {
               </div>
 
               {/* TRIGGER BUTTON AREA */}
-              <div className="flex flex-col items-center gap-2 shrink-0 pb-2">
+              <div className="flex flex-col items-center gap-2.5 shrink-0 pb-3">
                 {(sessionState === "ready" ||
                   sessionState === "countdown_retake") && (
                   <button
                     onClick={handleStartCapture}
-                    className="w-20 h-20 bg-[#bcff00] hover:bg-white text-black border-4 border-black rounded-full cursor-pointer shadow-[0_0_30px_rgba(188,255,0,0.4)] flex items-center justify-center transition-all hover:scale-105 active:scale-95 group"
+                    className="w-20 h-20 md:w-24 md:h-24 bg-[#CCFF00] hover:bg-white text-black border-4 border-black rounded-full cursor-pointer shadow-[0_0_40px_rgba(204,255,0,0.5)] flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 group"
                   >
-                    <Camera className="w-8 h-8 text-black" />
+                    <Camera className="w-9 h-9 md:w-10 md:h-10 text-black stroke-[2.5]" />
                   </button>
                 )}
-                <span className="font-mono text-xs tracking-widest text-[#bcff00] uppercase font-bold">
-                  {sessionState === "ready" ? "AMBIL FOTO" : "SESI BERJALAN..."}
+                <span className="font-mono text-xs tracking-widest text-[#CCFF00] uppercase font-black">
+                  {sessionState === "ready" ? "CAPTURE PHOTO" : "SESSION RUNNING..."}
                 </span>
               </div>
             </div>

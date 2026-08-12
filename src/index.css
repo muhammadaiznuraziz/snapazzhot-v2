@@ -1,9 +1,54 @@
 @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,600&family=Inter:wght@300;400;550;700;900&family=Space+Mono&family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap");
 @import "tailwindcss";
 
+:root {
+  --color-primary: #0038FF;
+  --color-primary-hover: #002ED6;
+  --color-primary-soft: #E6ECFF;
+  --color-accent: #CCFF00;
+  --color-white: #FFFFFF;
+  --color-black: #111111;
+  --color-gray-50: #F8F9FA;
+  --color-gray-100: #F1F3F5;
+  --color-gray-300: #DEE2E6;
+  --color-gray-500: #6C757D;
+
+  --radius-card: 32px;
+  --radius-large: 40px;
+  --radius-input: 20px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 20px 40px rgba(0, 0, 0, 0.15);
+  --shadow-button: 0 10px 20px rgba(0, 56, 255, 0.20);
+  --shadow-glass: 0 12px 30px rgba(255, 255, 255, 0.15);
+}
+
 @theme {
   --font-sans: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Cormorant Garamond", serif;
-  --font-mono:
-    "Space Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-mono: "Space Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  background-color: var(--color-gray-50, #F8F9FA);
+  color: var(--color-black, #111111);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.20);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--radius-card, 32px);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--radius-pill, 999px);
 }

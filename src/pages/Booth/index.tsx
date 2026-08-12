@@ -69,7 +69,6 @@ export default function BoothIndex() {
     [setSelectedFrameId, setPhotosToTake, showToast],
   );
 
-  // Auto-select template effect (Fixed re-render loop)
   useEffect(() => {
     if (!templates || templates.length === 0) return;
 
@@ -82,7 +81,6 @@ export default function BoothIndex() {
         setPhotosToTake(photoCount);
       }
     } else {
-      // Auto select first template without triggering state loop
       const firstTpl = templates[0];
       setSelectedFrameId(firstTpl.id);
       const photoCount =
@@ -97,7 +95,6 @@ export default function BoothIndex() {
     setPhotosToTake,
   ]);
 
-  // Reset booth session & initialize hardware camera
   useEffect(() => {
     let isMounted = true;
     setCapturedFrames([]);
@@ -199,8 +196,9 @@ export default function BoothIndex() {
         hidden: { opacity: 0 },
         show: { opacity: 1, transition: { staggerChildren: 0.05 } },
       }}
-      className="w-full min-h-screen md:h-screen p-4 sm:p-6 md:p-8 flex flex-col bg-[#004ce5] text-white relative overflow-y-auto md:overflow-hidden box-border justify-between items-center gap-4 select-none"
+      className="w-full min-h-screen md:h-screen p-4 sm:p-6 md:p-8 flex flex-col bg-[#0038FF] text-white relative overflow-y-auto md:overflow-hidden box-border justify-between items-center gap-4 select-none"
     >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(204,255,0,0.12),transparent_50%),radial-gradient(circle_at_bottom_left,rgba(0,46,214,0.8),transparent_70%)] pointer-events-none z-0" />
       <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-0" />
 
       {/* Header Info */}
@@ -209,14 +207,14 @@ export default function BoothIndex() {
           hidden: { opacity: 0, y: -10 },
           show: { opacity: 1, y: 0 },
         }}
-        className="text-center space-y-2 max-w-xl w-full shrink-0 relative z-10"
+        className="text-center space-y-2 max-w-xl w-full shrink-0 relative z-10 pt-2"
       >
-        <h2 className="text-2xl md:text-4xl font-black  tracking-tight text-white uppercase leading-none">
-          Pilih Frame Foto Anda
+        <h2 className="text-3xl md:text-5xl font-black tracking-tight text-white uppercase leading-none">
+          CHOOSE YOUR <span className="text-[#CCFF00]">VIBE</span>
         </h2>
         {activeEvent && (
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-black/60 border border-white/10 rounded-full font-['Outfit'] text-[9px] font-bold text-white/85 uppercase tracking-widest shadow-lg backdrop-blur-sm">
-            <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 glass-pill text-[10px] font-bold text-white uppercase tracking-widest shadow-lg">
+            <span className="w-1.5 h-1.5 bg-[#CCFF00] rounded-full animate-pulse" />
             Event: {activeEvent.name}
           </div>
         )}
@@ -227,9 +225,9 @@ export default function BoothIndex() {
         <div className="w-full relative flex items-center group/carousel px-2 md:px-16 h-full justify-center">
           <button
             onClick={() => scrollCarousel("left")}
-            className="absolute left-2 z-20 p-3 rounded-full bg-black/50 border border-white/10 hover:bg-black/80 hover:border-white/30 text-white transition-all shadow-xl hidden md:flex items-center justify-center backdrop-blur-sm cursor-pointer"
+            className="absolute left-2 z-20 p-3 rounded-full glass-panel hover:bg-white hover:text-black text-white transition-all shadow-xl hidden md:flex items-center justify-center cursor-pointer"
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
           </button>
 
           <div
@@ -253,16 +251,16 @@ export default function BoothIndex() {
                 return (
                   <div
                     key={tpl.id}
-                    className="flex-none snap-center flex flex-col items-center gap-2 h-full justify-center"
+                    className="flex-none snap-center flex flex-col items-center gap-3 h-full justify-center"
                   >
                     <motion.div
                       onClick={() => handleSelectCustomTemplate(tpl)}
-                      whileHover={{ scale: isSelected ? 1 : 1.02 }}
+                      whileHover={{ scale: isSelected ? 1.02 : 1.01, y: -4 }}
                       animate={{
                         scale: isSelected ? 1.04 : 0.96,
                         borderColor: isSelected
-                          ? "#a855f7"
-                          : "rgba(255,255,255,0.15)",
+                          ? "#CCFF00"
+                          : "rgba(255,255,255,0.2)",
                       }}
                       transition={{
                         type: "spring",
@@ -270,15 +268,15 @@ export default function BoothIndex() {
                         damping: 25,
                       }}
                       style={{ aspectRatio: `${aspectW} / ${aspectH}` }}
-                      className={`relative h-[280px] sm:h-[340px] md:h-full md:max-h-[360px]  shadow-2xl bg-black border-2 transition-shadow duration-200 cursor-pointer ${
+                      className={`relative h-[280px] sm:h-[340px] md:h-full md:max-h-[360px] shadow-[0_20px_40px_rgba(0,0,0,0.25)] bg-neutral-950 border-2 overflow-hidden transition-all duration-300 cursor-pointer ${
                         isSelected
-                          ? "shadow-[#a855f7]/30 ring-4 ring-[#a855f7]/20"
-                          : "hover:border-white/40"
+                          ? "shadow-[0_0_30px_rgba(204,255,0,0.3)] ring-4 ring-[#CCFF00]/30"
+                          : "hover:border-white/50"
                       }`}
                     >
                       {isSelected && (
-                        <div className="absolute top-2 right-2 z-30 w-5 h-5 rounded-full bg-[#a855f7] text-white flex items-center justify-center shadow-lg">
-                          <Check className="w-3 stroke-[3]" />
+                        <div className="absolute top-3 right-3 z-30 w-7 h-7 rounded-full bg-[#CCFF00] text-black flex items-center justify-center shadow-lg font-bold">
+                          <Check className="w-4 h-4 stroke-[3]" />
                         </div>
                       )}
 
@@ -307,12 +305,12 @@ export default function BoothIndex() {
                               }}
                               className={`absolute flex flex-col items-center justify-center ${
                                 el.type === "photo"
-                                  ? "bg-white/10 border border-white/10 text-white"
+                                  ? "bg-white/10 border border-white/20 text-white rounded-lg"
                                   : "bg-white text-black p-[0.5px]"
                               }`}
                             >
                               {el.type === "photo" && (
-                                <ImageIcon className="w-3 h-3 text-[#bcff00]/80" />
+                                <ImageIcon className="w-3.5 h-3.5 text-[#CCFF00]" />
                               )}
                               {el.type === "qr" && (
                                 <QrCode className="w-full h-full text-black" />
@@ -336,12 +334,12 @@ export default function BoothIndex() {
                         isSelected ? "opacity-100" : "opacity-60"
                       }`}
                     >
-                      <h4 className="text-[11px] font-black text-white uppercase tracking-wide font-['Outfit'] max-w-[160px] truncate">
+                      <h4 className="text-xs font-black text-white uppercase tracking-wider max-w-[180px] truncate">
                         {tpl.name}
                       </h4>
-                      <p className="font-['Outfit'] text-[9px] text-white/50 font-medium">
-                        <span className="text-[#bcff00] font-black">
-                          {tplSlots} FOTO
+                      <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest mt-0.5">
+                        <span className="text-[#CCFF00] font-black">
+                          {tplSlots} FOTOS
                         </span>{" "}
                         • {tpl.canvasWidth}×{tpl.canvasHeight}
                       </p>
@@ -350,48 +348,47 @@ export default function BoothIndex() {
                 );
               })
             ) : (
-              <div className="w-full text-center py-12 font-['Outfit'] text-xs text-white/30 uppercase tracking-widest">
-                Tidak Ada Template Tersedia
+              <div className="w-full text-center py-12 text-xs text-white/50 uppercase tracking-widest">
+                No templates available
               </div>
             )}
           </div>
 
           <button
             onClick={() => scrollCarousel("right")}
-            className="absolute right-2 z-20 p-3 rounded-full bg-black/50 border border-white/10 hover:bg-black/80 hover:border-white/30 text-white transition-all shadow-xl hidden md:flex items-center justify-center backdrop-blur-sm cursor-pointer"
+            className="absolute right-2 z-20 p-3 rounded-full glass-panel hover:bg-white hover:text-black text-white transition-all shadow-xl hidden md:flex items-center justify-center cursor-pointer"
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-5 h-5 stroke-[2.5]" />
           </button>
         </div>
 
-        <p className="font-['Outfit'] text-[9px] text-white/30 uppercase tracking-widest block md:hidden">
-          Geser ke kiri atau kanan untuk melihat frame lainnya.
+        <p className="text-[10px] text-white/60 uppercase tracking-widest block md:hidden font-bold">
+          Swipe left or right to explore frames
         </p>
       </div>
 
       {/* BOTTOM CONTROLS ZONE */}
-      <div className="w-full max-w-4xl shrink-0 flex flex-col gap-4 relative z-10">
+      <div className="w-full max-w-4xl shrink-0 flex flex-col gap-4 relative z-10 pb-2">
         <motion.div
           variants={{
             hidden: { opacity: 0, y: 15 },
             show: { opacity: 1, y: 0 },
           }}
-          className="w-full p-4 bg-black/40 border border-white/10 rounded-[20px] shadow-2xl grid grid-cols-1 sm:grid-cols-2 gap-4 backdrop-blur-md items-center"
+          className="w-full p-5 glass-panel rounded-[32px] shadow-2xl grid grid-cols-1 sm:grid-cols-2 gap-5 items-center border border-white/20"
         >
-          <div className="space-y-1.5">
-            <label className="font-['Outfit'] text-[9px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1.5">
-              <Monitor className="w-3.5 h-3.5 text-[#bcff00]" /> Interval
-              Countdown
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-white/70 uppercase tracking-widest flex items-center gap-1.5">
+              <Monitor className="w-4 h-4 text-[#CCFF00]" /> Countdown Interval
             </label>
             <div className="grid grid-cols-4 gap-2">
               {[3, 5, 7, 10].map((sec) => (
                 <button
                   key={sec}
                   onClick={() => setCountdownSeconds(sec)}
-                  className={`flex items-center justify-center py-1.5 rounded-lg font-['Outfit'] text-[11px] font-bold uppercase transition border cursor-pointer ${
+                  className={`flex items-center justify-center py-2.5 rounded-full text-xs font-extrabold uppercase transition-all cursor-pointer ${
                     countdownSeconds === sec
-                      ? "bg-white text-black border-white shadow-md"
-                      : "bg-black/40 text-white/60 border-white/5 hover:border-white/15"
+                      ? "bg-[#CCFF00] text-black shadow-lg scale-105"
+                      : "bg-white/10 hover:bg-white/20 text-white border border-white/20"
                   }`}
                 >
                   {sec}s
@@ -400,22 +397,21 @@ export default function BoothIndex() {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="font-['Outfit'] text-[9px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-[#bcff00]" /> Input Kamera
-              Hardware
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-white/70 uppercase tracking-widest flex items-center gap-1.5">
+              <Sliders className="w-4 h-4 text-[#CCFF00]" /> Camera Source
             </label>
             {useSimulator ? (
-              <div className="py-1.5 px-4 bg-black/50 border border-[#bcff00]/20 rounded-lg text-[10px] font-['Outfit'] font-black text-[#bcff00] flex items-center gap-2 tracking-wide">
-                <span className="w-1.5 h-1.5 bg-[#bcff00] rounded-full animate-pulse" />
+              <div className="py-2.5 px-4 bg-black/40 border border-[#CCFF00]/40 rounded-full text-xs font-black text-[#CCFF00] flex items-center gap-2 tracking-wide">
+                <span className="w-2 h-2 bg-[#CCFF00] rounded-full animate-pulse" />
                 DSLR SIMULATOR ACTIVE
               </div>
             ) : (
-              <div className="relative bg-black/40 border border-white/5 rounded-lg px-4 py-1 focus-within:border-white transition flex items-center">
+              <div className="relative bg-white/10 border border-white/20 rounded-full px-4 py-2 focus-within:border-[#CCFF00] transition flex items-center backdrop-blur-md">
                 <select
                   value={selectedCameraId}
                   onChange={(e) => setSelectedCameraId(e.target.value)}
-                  className="w-full bg-transparent border-none p-0 text-[11px] font-['Outfit'] font-bold text-white outline-none focus:ring-0 cursor-pointer appearance-none"
+                  className="w-full bg-transparent border-none p-0 text-xs font-bold text-white outline-none focus:ring-0 cursor-pointer appearance-none"
                 >
                   {cameraList.map((cam) => (
                     <option
@@ -423,7 +419,7 @@ export default function BoothIndex() {
                       value={cam.deviceId}
                       className="bg-neutral-900 text-white"
                     >
-                      {cam.label || `Kamera [${cam.deviceId.substring(0, 6)}]`}
+                      {cam.label || `Camera [${cam.deviceId.substring(0, 6)}]`}
                     </option>
                   ))}
                 </select>
@@ -433,19 +429,19 @@ export default function BoothIndex() {
         </motion.div>
 
         {/* Action Button */}
-        <div className="w-full flex justify-center pb-2">
+        <div className="w-full flex justify-center">
           <motion.button
             onClick={handleStart}
             whileHover={{
               y: -2,
               scale: 1.01,
-              boxShadow: "0 15px 30px rgba(188,255,0,0.25)",
+              boxShadow: "0 15px 35px rgba(204,255,0,0.3)",
             }}
             whileTap={{ scale: 0.99 }}
-            className="w-full max-w-md py-3.5 bg-[#bcff00] hover:bg-white text-black font-['Outfit'] font-black uppercase tracking-widest text-xs  shadow-xl transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full max-w-md py-4 bg-[#CCFF00] hover:bg-white text-black font-black uppercase tracking-widest text-sm rounded-full shadow-2xl transition-all duration-200 flex items-center justify-center gap-3 cursor-pointer"
           >
-            <Camera className="w-4 h-4 text-black" />
-            Mulai Pemotretan
+            <Camera className="w-5 h-5 text-black" />
+            <span>START SHOOT →</span>
           </motion.button>
         </div>
       </div>
@@ -457,9 +453,9 @@ export default function BoothIndex() {
             initial={{ opacity: 0, y: -20, x: "-50%" }}
             animate={{ opacity: 1, y: 0, x: "-50%" }}
             exit={{ opacity: 0, y: -20, x: "-50%" }}
-            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-[#bcff00] text-black font-['Outfit'] text-[10px] font-black uppercase tracking-widest px-5 py-3.5 rounded-xl border-2 border-black flex items-center gap-2 whitespace-nowrap shadow-2xl"
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-[#CCFF00] text-black text-xs font-black uppercase tracking-widest px-6 py-4 rounded-2xl border-2 border-black flex items-center gap-2.5 whitespace-nowrap shadow-2xl"
           >
-            <Sparkles className="w-3.5 h-3.5 text-black animate-pulse" />
+            <Sparkles className="w-4 h-4 text-black animate-pulse" />
             {toastMessage}
           </motion.div>
         )}

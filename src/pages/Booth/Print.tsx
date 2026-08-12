@@ -13,7 +13,6 @@ import { useApp } from "../../contexts/AppContext";
 import { renderMedia } from "../../utils/render";
 import { supabase } from "../../lib/supabaseClient";
 
-// Import helper filter dari layout context
 import { getCanvasFilterString } from "../../layouts/BoothLayout";
 
 interface BtsSlotProps {
@@ -134,7 +133,6 @@ export default function BoothPrint() {
     zoom,
   } = context;
 
-  // State Tab Tampilan Output
   const [activeTab, setActiveTab] = useState<"template" | "gif" | "bts">(
     "template",
   );
@@ -163,13 +161,11 @@ export default function BoothPrint() {
     }
   }, [compiledPhotoRecord, capturedFrames, navigate]);
 
-  // Handler saat user klik tombol Selesai (Tampilkan foto di galeri publik)
   const handleFinish = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
     try {
-      // Update photo record menjadi publik agar tampil di galeri
       if (compiledPhotoRecord?.id) {
         const { error } = await supabase
           .from("photos")
@@ -178,21 +174,18 @@ export default function BoothPrint() {
 
         if (error) throw error;
 
-        // Sync local context state
         if (setCompiledPhotoRecord) {
           setCompiledPhotoRecord((prev: any) =>
-            prev ? { ...prev, isPublic: true } : null
+            prev ? { ...prev, isPublic: true } : null,
           );
         }
 
-        // Refresh data galeri publik
         await fetchInitialData(true);
       }
 
       navigate("/booth/success");
     } catch (err) {
       console.error("Gagal menyimpan otomatis ke galeri:", err);
-      // Tetap alihkan user agar pengalaman kiosk tidak terhenti
       navigate("/booth/success");
     } finally {
       setIsSubmitting(false);
@@ -201,8 +194,8 @@ export default function BoothPrint() {
 
   if (!compiledPhotoRecord) {
     return (
-      <div className="w-full h-[100dvh] flex items-center justify-center bg-[#004ce5] text-white font-['Outfit']">
-        <Loader2 className="w-8 h-8 animate-spin text-[#bcff00]" />
+      <div className="w-full h-[100dvh] flex items-center justify-center bg-[#0038FF] text-white font-sans">
+        <Loader2 className="w-8 h-8 animate-spin text-[#CCFF00]" />
       </div>
     );
   }
@@ -228,17 +221,16 @@ export default function BoothPrint() {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="w-full h-[100dvh] bg-[#004ce5] text-white flex p-4 lg:p-6 overflow-hidden font-['Outfit'] select-none relative box-border"
+      className="w-full h-[100dvh] bg-[#0038FF] text-white flex p-4 lg:p-6 overflow-hidden font-sans select-none relative box-border"
     >
-      {/* BACKGROUND MATRIX GRID */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-0" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(204,255,0,0.15),transparent_50%),radial-gradient(circle_at_bottom_left,rgba(0,46,214,0.8),transparent_70%)] pointer-events-none z-0" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-0" />
 
-      {/* GRID LAYOUT UTAMA */}
       <div className="w-full h-full flex flex-col lg:flex-row gap-5 lg:gap-6 relative z-10 overflow-y-auto lg:overflow-hidden min-h-0">
         {/* KOLOM KIRI: PREVIEW UTAMA */}
         <div
           ref={previewContainerRef}
-          className="flex-1 min-h-[380px] lg:min-h-0 flex items-center justify-center p-4 relative overflow-hidden shadow-2xl"
+          className="flex-1 min-h-[380px] lg:min-h-0 flex items-center justify-center p-4 relative overflow-hidden"
         >
           <AnimatePresence mode="wait">
             {activeTab === "template" && (
@@ -252,7 +244,7 @@ export default function BoothPrint() {
                   width: `${canvasWidth * scale}px`,
                   height: `${canvasHeight * scale}px`,
                 }}
-                className="shadow-2xl relative bg-neutral-900 overflow-hidden flex items-center justify-center"
+                className="shadow-[0_25px_50px_rgba(0,0,0,0.35)]  relative bg-neutral-950 overflow-hidden flex items-center justify-center border border-white/20"
               >
                 <img
                   src={compiledPhotoRecord.url}
@@ -269,7 +261,7 @@ export default function BoothPrint() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.98 }}
                 transition={{ duration: 0.2 }}
-                className="w-full h-full max-w-full max-h-full aspect-video relative bg-neutral-900 rounded-xl overflow-hidden shadow-2xl flex items-center justify-center border border-white/10"
+                className="w-full h-full max-w-full max-h-full aspect-video relative bg-neutral-950 overflow-hidden shadow-[0_25px_50px_rgba(0,0,0,0.35)] flex items-center justify-center border border-white/20"
               >
                 <img
                   src={sessionGifUrl}
@@ -295,7 +287,7 @@ export default function BoothPrint() {
                     : undefined,
                   backgroundSize: "cover",
                 }}
-                className="shadow-2xl relative overflow-hidden"
+                className="shadow-[0_25px_50px_rgba(0,0,0,0.35)] relative overflow-hidden border border-white/20"
               >
                 {elements.map((el: any) => {
                   const style: React.CSSProperties = {
@@ -353,36 +345,47 @@ export default function BoothPrint() {
         </div>
 
         {/* KOLOM KANAN: SIDEBAR ACTIONS */}
-        <div className="w-full lg:w-[340px] xl:w-[360px] shrink-0 bg-neutral-950/80 backdrop-blur-md border border-white/10 rounded-2xl lg:rounded-[24px] p-5 flex flex-col gap-5 shadow-2xl justify-between">
+        <div className="w-full lg:w-[360px] xl:w-[400px] shrink-0 glass-panel border border-white/25 rounded-[32px] p-6 flex flex-col gap-6 shadow-2xl justify-between">
           <div className="flex flex-col gap-5 text-left">
+            <div className="space-y-1">
+              <h3 className="text-xl font-black uppercase tracking-tight text-white">
+                YOUR MOMENT <br />
+                <span className="text-[#CCFF00]">IS READY.</span>
+              </h3>
+              <p className="text-xs text-white/70 font-medium">
+                Review your final output, GIF animation, or behind-the-scenes
+                footage before publishing.
+              </p>
+            </div>
+
             {/* TIPE TAMPILAN SELECTOR */}
-            <div className="flex flex-col gap-2">
-              <span className="text-[10px] font-black uppercase text-[#bcff00] tracking-widest">
-                TIPE TAMPILAN
+            <div className="flex flex-col gap-2 pt-2">
+              <span className="text-[10px] font-black uppercase text-[#CCFF00] tracking-widest">
+                OUTPUT VIEW MODE
               </span>
-              <div className="flex flex-col gap-2 bg-neutral-900/80 p-1.5 border border-white/5 rounded-xl">
+              <div className="flex flex-col gap-2.5 bg-black/40 p-2 border border-white/15 rounded-2xl">
                 <button
                   onClick={() => setActiveTab("template")}
-                  className={`w-full px-4 py-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center gap-3 cursor-pointer ${
+                  className={`w-full px-4 py-3.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-3 cursor-pointer ${
                     activeTab === "template"
-                      ? "bg-[#bcff00] text-black shadow-md"
-                      : "text-white/60 hover:text-white hover:bg-white/5"
+                      ? "bg-[#CCFF00] text-black shadow-lg"
+                      : "text-white/70 hover:text-white hover:bg-white/10"
                   }`}
                 >
-                  <ImageIcon className="w-4 h-4 shrink-0" />
+                  <ImageIcon className="w-4 h-4 shrink-0 stroke-[2.5]" />
                   <span>Photostrip Layout</span>
                 </button>
 
                 {sessionGifUrl && (
                   <button
                     onClick={() => setActiveTab("gif")}
-                    className={`w-full px-4 py-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center gap-3 cursor-pointer ${
+                    className={`w-full px-4 py-3.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-3 cursor-pointer ${
                       activeTab === "gif"
-                        ? "bg-[#bcff00] text-black shadow-md"
-                        : "text-white/60 hover:text-white hover:bg-white/5"
+                        ? "bg-[#CCFF00] text-black shadow-lg"
+                        : "text-white/70 hover:text-white hover:bg-white/10"
                     }`}
                   >
-                    <Film className="w-4 h-4 shrink-0" />
+                    <Film className="w-4 h-4 shrink-0 stroke-[2.5]" />
                     <span>Looping GIF</span>
                   </button>
                 )}
@@ -390,13 +393,13 @@ export default function BoothPrint() {
                 {sessionVideoUrl && (
                   <button
                     onClick={() => setActiveTab("bts")}
-                    className={`w-full px-4 py-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center gap-3 cursor-pointer ${
+                    className={`w-full px-4 py-3.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-3 cursor-pointer ${
                       activeTab === "bts"
-                        ? "bg-[#bcff00] text-black shadow-md"
-                        : "text-white/60 hover:text-white hover:bg-white/5"
+                        ? "bg-[#CCFF00] text-black shadow-lg"
+                        : "text-white/70 hover:text-white hover:bg-white/10"
                     }`}
                   >
-                    <Video className="w-4 h-4 text-red-500 animate-pulse shrink-0" />
+                    <Video className="w-4 h-4 text-red-400 animate-pulse shrink-0 stroke-[2.5]" />
                     <span>Behind The Scenes</span>
                   </button>
                 )}
@@ -409,16 +412,16 @@ export default function BoothPrint() {
             <button
               onClick={handleFinish}
               disabled={isSubmitting}
-              className="w-full py-3.5 bg-[#bcff00] hover:bg-white disabled:bg-neutral-800 disabled:text-white/40 text-black text-xs font-black uppercase tracking-widest rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(188,255,0,0.2)]"
+              className="w-full py-4 bg-[#CCFF00] hover:bg-white disabled:bg-neutral-800 disabled:text-white/40 text-black text-xs font-black uppercase tracking-widest rounded-full transition-all duration-300 cursor-pointer flex items-center justify-center gap-2.5 shadow-[0_0_30px_rgba(204,255,0,0.3)]"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Menyimpan...</span>
+                  <span>Saving Session...</span>
                 </>
               ) : (
                 <>
-                  <span>Selesai</span>
+                  <span>FINISH & SHARE →</span>
                   <ArrowRight className="w-4 h-4 stroke-[3]" />
                 </>
               )}
